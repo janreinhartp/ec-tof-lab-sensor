@@ -1,302 +1,494 @@
-# EC-TOF Analyzer
-## Product Requirements Document
-
-Version: 0.1  
-Status: Prototype Planning  
-Product Type: Portable Laboratory Measurement Instrument
-
----
+# EC-TOF Analyzer V0.1
+# Product Requirements Document
 
 ## 1. Product Overview
 
-The EC-TOF Analyzer is a portable laboratory instrument designed to measure:
+The **EC-TOF Analyzer** is a portable measurement device designed to combine:
 
-1. Electrical conductivity of a liquid sample
-2. Ultrasonic time of flight
-3. Calculated distance based on the ultrasonic measurement
+- Electrical conductivity measurement.
+- Ultrasonic time-of-flight measurement.
+- Distance calculation.
+- Timestamped measurement logging.
+- Local display.
+- Local Wi-Fi access.
+- Rechargeable battery operation.
 
-The first prototype will use an ESP32-S3 as the main controller.
+The V0.1 version is a functional prototype.
 
-The prototype will use commercially available components wherever possible. Custom electronics will be avoided during the initial development stage.
-
-The system will provide a local display, data logging, battery operation, and a local web interface.
-
----
-
-## 2. Product Objective
-
-The primary objective is to build a working prototype that can demonstrate the customer's required measurement concept using low-cost, readily available hardware.
-
-The prototype must:
-
-- Measure electrical conductivity
-- Measure ultrasonic time of flight
-- Calculate distance
-- Display measurement results
-- Store measurement data
-- Timestamp measurements
-- Operate from a rechargeable battery
-- Allow the user to start and control measurements without a touchscreen
-- Provide a local web interface for viewing and exporting data
-
-The prototype is intended for engineering validation and experimentation.
-
-It is not considered a production laboratory instrument until the measurement accuracy and sensor technology have been validated.
+The primary goal is to validate the complete measurement workflow and establish a hardware and software architecture that can be upgraded to a production-grade ultrasonic measurement system later.
 
 ---
 
-## 3. V0.1 Scope
+# 2. Product Objective
 
-### 3.1 Included
+The primary objective of V0.1 is to create a portable analyzer that can:
 
-The first prototype will include:
-
-- ESP32-S3 controller
-- DFRobot SEN0707 conductivity sensor
-- RS485 communication
-- Modbus RTU communication with the conductivity sensor
-- HC-SR04 ultrasonic sensor
-- 4-inch SPI TFT display
-- MicroSD data logging
-- DS3231 RTC
-- Physical user controls
-- Rechargeable battery
-- Battery charging
-- Battery monitoring
-- Local Wi-Fi
-- Local web interface
-- Measurement history
-- CSV data export
-- Basic calibration functions
+1. Measure the electrical conductivity of a liquid sample.
+2. Perform an ultrasonic time-of-flight measurement.
+3. Calculate distance from the measured TOF.
+4. Display measurement results locally.
+5. Record measurement results with timestamps.
+6. Allow measurements to be initiated using physical controls.
+7. Provide a local Wi-Fi interface.
+8. Provide a simple battery level indicator.
+9. Operate without an internet connection.
+10. Use removable external sensors.
 
 ---
 
-## 4. Measurements
+# 3. V0.1 Product Scope
 
-### 4.1 Electrical Conductivity
+The V0.1 prototype includes:
 
-The system will use the DFRobot SEN0707 industrial conductivity sensor.
-
-The sensor communicates with the ESP32-S3 through RS485 using Modbus RTU.
-
-The system will display conductivity using an appropriate unit such as:
-
-- µS/cm
-- mS/cm
-
-The initial supported measurement range will follow the SEN0707 specifications.
-
-The prototype will not implement a custom conductivity analog front end.
-
-### 4.2 Ultrasonic Time of Flight
-
-The first prototype will use an HC-SR04 ultrasonic sensor.
-
-The ESP32-S3 will:
-
-1. Trigger the ultrasonic sensor.
-2. Start a high-resolution timer.
-3. Monitor the echo signal.
-4. Measure the elapsed time.
-5. Store the measured time of flight.
-6. Calculate distance where applicable.
-
-The HC-SR04 is a prototype sensor only.
-
-It must not be considered the final ultrasonic sensor for production use.
-
-### 4.3 Distance
-
-Distance will be calculated from the ultrasonic measurement.
-
-The initial implementation will use the ultrasonic sensor's measured echo time and the configured acoustic propagation parameters.
-
-The calculation method may change after laboratory testing determines the customer's required ultrasonic measurement configuration.
+| Feature | V0.1 |
+|---|---|
+| Electrical conductivity | Yes |
+| Ultrasonic TOF | Yes |
+| Distance calculation | Yes |
+| Local TFT display | Yes |
+| Physical controls | Yes |
+| Measurement logging | Yes |
+| RTC timestamping | Yes |
+| MicroSD storage | Yes |
+| Local Wi-Fi | Yes |
+| REST API | Yes |
+| Web dashboard | Yes |
+| Rechargeable battery | Yes |
+| Battery voltage measurement | Yes |
+| Simple battery percentage | Yes |
+| Battery current measurement | No |
+| Battery power measurement | No |
+| Cloud connectivity | No |
+| Touchscreen | No |
+| Web OTA | No |
+| Production-grade ultrasonic system | No |
 
 ---
 
-## 5. User Requirements
+# 4. Target User
 
-The instrument should be simple enough for a laboratory operator to use without a computer.
+The initial system is intended for technical and engineering users who need a portable measurement instrument for prototype testing and laboratory-style evaluation.
 
-The operator must be able to:
+The device should prioritize:
 
-- Power the instrument on
-- View the current system status
-- Start a measurement
-- View conductivity
-- View ultrasonic time of flight
-- View calculated distance
-- View measurement status
-- Review previous measurements
-- Start calibration procedures
-- Configure basic system settings
-- Export stored measurements
+- Measurement reliability.
+- Clear results.
+- Repeatability.
+- Simple operation.
+- Easy data retrieval.
+- Replaceable sensors.
+- Maintainability.
 
-The instrument will use physical controls rather than a touchscreen.
+The V0.1 interface does not need to be consumer-oriented.
 
 ---
 
-## 6. User Interface Requirements
+# 5. Core User Workflow
 
-The primary interface will be a 4-inch SPI TFT display.
-
-The initial interface should display:
+The primary user workflow is:
 
 ```text
-EC-TOF ANALYZER
-
-Conductivity
-4.82 mS/cm
-
-Ultrasonic TOF
-12.482 µs
-
-Distance
-18.73 mm
-
-Status
-VALID
-
-Battery
-82%
+Power ON
+   │
+   ▼
+System Initialization
+   │
+   ▼
+READY
+   │
+   ▼
+Prepare Sample
+   │
+   ▼
+Position Sensors
+   │
+   ▼
+Press START
+   │
+   ▼
+Ultrasonic TOF Measurement
+   │
+   ▼
+Distance Calculation
+   │
+   ▼
+Conductivity Measurement
+   │
+   ▼
+Measurement Validation
+   │
+   ├────────────── Invalid ──────► ERROR
+   │
+   ▼
+Display Result
+   │
+   ▼
+Timestamp Result
+   │
+   ▼
+Save to MicroSD
+   │
+   ▼
+Update Web Interface
+   │
+   ▼
+READY
 ```
 
-The interface should prioritize measurement values over decorative graphics.
+---
 
-The system should use clear status indicators for:
+# 6. Electrical Conductivity Requirements
 
-- Ready
-- Measuring
-- Valid
-- Error
-- Sensor disconnected
-- Calibration required
-- Low battery
-- SD card error
+## 6.1 Sensor
+
+V0.1 shall use the:
+
+**DFRobot SEN0707 Industrial Water Conductivity Sensor**
+
+The sensor communicates through RS485 using Modbus-RTU.
+
+### Target specifications
+
+| Parameter | Requirement |
+|---|---|
+| Cell constant | K=10 |
+| Range | 10 to 20,000 µS/cm |
+| Resolution | 1 µS/cm |
+| Accuracy | ±1% FS |
+| Interface | RS485 |
+| Protocol | Modbus-RTU |
+| Supply | 10 to 30 V DC |
+| Protection | IP68 |
+
+The actual usable measurement range must be confirmed against the customer's sample requirements.
 
 ---
 
-## 7. Physical Controls
+# 7. Conductivity Measurement Requirements
 
-The prototype will use:
+The system shall:
 
-- Rotary encoder with push button
-- START button
-- BACK button
+- Communicate with the SEN0707 through RS485.
+- Use Modbus-RTU.
+- Detect communication timeouts.
+- Detect invalid Modbus responses.
+- Detect CRC errors.
+- Detect sensor disconnection where possible.
+- Read conductivity values.
+- Validate conductivity values.
+- Display conductivity results.
+- Log conductivity results.
+- Include conductivity in the web API.
 
-The rotary encoder will be used for:
-
-- Menu navigation
-- Value selection
-- Configuration
-- Calibration input
-
-The push button on the encoder will be used for:
-
-- Select
-- Enter
-- Confirm
-
-The START button will begin a measurement.
-
-The BACK button will return to the previous menu or cancel an operation.
+The firmware shall isolate the SEN0707 implementation behind an EC sensor interface.
 
 ---
 
-## 8. Data Logging Requirements
+# 8. Ultrasonic TOF Requirements
 
-The system must store measurement data on a MicroSD card.
+## 8.1 V0.1 Sensor
 
-Each measurement record should contain at least:
+V0.1 shall use an **HC-SR04** for initial ultrasonic feasibility testing.
 
-- Measurement ID
-- Timestamp
-- Conductivity
-- Ultrasonic time of flight
-- Calculated distance
-- Measurement status
+The HC-SR04 is a prototype component.
+
+It is not considered the final ultrasonic measurement solution.
+
+---
+
+# 9. Ultrasonic Measurement Objective
+
+The V0.1 ultrasonic subsystem shall demonstrate:
+
+- Trigger generation.
+- Echo detection.
+- Microsecond-level timing.
+- TOF calculation.
+- Distance calculation.
+- Measurement timeout handling.
+- Measurement validation.
+- Display of TOF.
+- Display of calculated distance.
+- Logging of TOF and distance.
+
+---
+
+# 10. Ultrasonic Limitation
+
+The HC-SR04 is an air ultrasonic ranging sensor.
+
+Therefore:
+
+**V0.1 shall not be considered a production-grade liquid ultrasonic measurement instrument.**
+
+The purpose of the V0.1 ultrasonic subsystem is to validate:
+
+- The measurement workflow.
+- Timing architecture.
+- Software abstraction.
+- Data processing.
+- User interface.
+- Logging.
+- Overall system integration.
+
+A future production version may use a dedicated ultrasonic transducer, receiver, amplifier, and signal-processing system.
+
+---
+
+# 11. Distance Calculation
+
+For the V0.1 air prototype:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+The speed of sound shall be configurable.
+
+The calculation must be isolated from the HC-SR04 driver so that the future acoustic measurement model can be replaced.
+
+---
+
+# 12. Sensor Replaceability
+
+External sensors must be removable.
+
+The system shall not hardwire the EC sensor or ultrasonic sensor directly to the main PCB.
+
+The architecture shall allow:
+
+```text
+Current:
+
+ITofSensor
+    └── HC-SR04
+
+Future:
+
+ITofSensor
+    ├── HC-SR04
+    ├── Laboratory Ultrasonic Sensor
+    └── Custom Acoustic System
+```
+
+The same principle applies to the conductivity sensor.
+
+---
+
+# 13. Local Display Requirements
+
+The device shall include a:
+
+**4-inch 480x320 ST7796 SPI TFT**
+
+The display shall show:
+
+- Conductivity.
+- Ultrasonic TOF.
+- Distance.
+- Measurement status.
+- Battery percentage.
+- System warnings.
+- Basic system status.
 
 Example:
 
 ```text
-id,timestamp,conductivity,tof_us,distance_mm,status
-1,2026-10-08T15:32:10,4820,12.482,18.73,VALID
-2,2026-10-08T15:33:10,4818,12.479,18.72,VALID
+┌──────────────────────────────────────┐
+│ EC-TOF ANALYZER               🔋 78% │
+│                                      │
+│ Conductivity                         │
+│ 4.82 mS/cm                            │
+│                                      │
+│ Ultrasonic TOF                       │
+│ 12.482 us                             │
+│                                      │
+│ Distance                             │
+│ 18.73 mm                              │
+│                                      │
+│ Status: READY                         │
+└──────────────────────────────────────┘
 ```
 
-CSV will be the initial data format.
-
-The system should continue operating if an SD card is not installed, but data logging must be reported as unavailable.
+The display shall not require a touchscreen.
 
 ---
 
-## 9. Time and Timestamp Requirements
+# 14. Physical Control Requirements
 
-The prototype will use a DS3231 RTC.
+The device shall provide:
 
-The RTC will provide timestamps when recording measurements.
+### Rotary Encoder
 
-The instrument must maintain the correct date and time across power cycles using the RTC backup battery.
+Used for:
 
-The system should allow the user to configure the date and time.
+- Menu navigation.
+- Parameter selection.
+- Value adjustment.
+- Selection confirmation.
 
-Internet connectivity must not be required for timestamping.
+### START Button
 
----
+Used to:
 
-## 10. Battery Requirements
+- Start a measurement.
 
-The instrument must operate from a rechargeable battery.
+### BACK Button
 
-The prototype will use a single-cell rechargeable lithium battery.
+Used to:
 
-The battery system must provide the required voltage rails for:
-
-- ESP32-S3
-- Display
-- HC-SR04
-- SEN0707
-
-Because the SEN0707 requires a higher supply voltage than the ESP32-S3, the prototype will use a boost converter to generate its required supply voltage.
-
-The system must provide:
-
-- Battery charging
-- Main power switch
-- Battery status
-- Low-battery warning
-- Basic battery protection
-
-The system should display the approximate battery level on the main screen.
+- Return to the previous screen.
+- Cancel supported operations.
+- Exit configuration screens.
 
 ---
 
-## 11. Connectivity Requirements
+# 15. Measurement Logging
 
-### 11.1 Sensor Connectivity
+The device shall log measurement results to MicroSD.
 
-The conductivity sensor will communicate through:
+Each valid measurement should contain:
 
 ```text
-ESP32-S3
-    ↓
-UART
-    ↓
-RS485
-    ↓
-SEN0707
+timestamp
+conductivity
+tof_us
+distance_mm
+status
 ```
 
-The communication protocol will be Modbus RTU.
+Example:
 
-The ultrasonic sensor will use GPIO signals.
+```csv
+timestamp,conductivity,tof_us,distance_mm,status
+2026-10-08T15:32:10,4820,12.482,18.73,VALID
+```
 
-### 11.2 Wi-Fi
+---
 
-The ESP32-S3 will provide local Wi-Fi connectivity.
+# 16. Data Storage
 
-The instrument should be capable of creating a local access point.
+The recommended storage structure is:
+
+```text
+/ECTOF/
+    config/
+    data/
+        YYYY/
+            MM/
+                DD.csv
+    logs/
+```
+
+The system shall create required directories automatically.
+
+A missing or failed SD card shall not crash the measurement application.
+
+The user shall receive a warning when measurement logging is unavailable.
+
+---
+
+# 17. Timestamp Requirements
+
+The device shall use a DS3231 RTC.
+
+The RTC shall provide timestamps without requiring internet access.
+
+Timestamp format:
+
+```text
+YYYY-MM-DDTHH:MM:SS
+```
+
+Example:
+
+```text
+2026-10-08T15:32:10
+```
+
+---
+
+# 18. Battery Requirements
+
+The device shall be battery powered.
+
+Target battery:
+
+```text
+3.7 V
+~5000 mAh
+Rechargeable Li-ion
+```
+
+The battery system shall include appropriate protection.
+
+---
+
+# 19. Battery Charging
+
+The device shall support USB-C charging.
+
+The charging system shall be compatible with the selected single-cell Li-ion battery.
+
+The USB-C connector should be accessible from outside the enclosure.
+
+---
+
+# 20. Battery Indicator
+
+V0.1 shall provide a simple battery indicator.
+
+The system shall:
+
+- Measure battery voltage.
+- Estimate battery percentage.
+- Display battery percentage.
+- Display low-battery status.
+- Display critical-battery status.
+
+The battery indicator is an approximate user-facing estimate.
+
+It is not intended to provide precision state-of-charge measurement.
+
+---
+
+# 21. Battery Measurement Exclusions
+
+V0.1 shall **not** measure:
+
+- Battery current.
+- Battery power.
+- Instantaneous system power.
+- Energy consumption.
+- Detailed battery charge/discharge characteristics.
+
+V0.1 shall not include an INA226 or dedicated battery fuel gauge.
+
+---
+
+# 22. Power Architecture
+
+The system shall provide the voltage rails required by the selected hardware.
+
+Expected architecture:
+
+```text
+3.7 V Battery
+     │
+     ├──► 12 V Boost ──► SEN0707
+     │
+     ├──► 5 V Rail ─────► TFT / HC-SR04 where required
+     │
+     └──► 3.3 V Rail ───► ESP32-S3 / Logic
+```
+
+The exact regulator selection shall be finalized during hardware implementation.
+
+---
+
+# 23. Local Wi-Fi Requirements
+
+The ESP32-S3 shall provide a local Wi-Fi access point.
 
 Example:
 
@@ -308,322 +500,612 @@ IP:
 192.168.4.1
 ```
 
-Internet access must not be required for normal operation.
+The device shall not require an internet connection for normal operation.
 
 ---
 
-## 12. Web Interface Requirements
+# 24. Web Interface
 
-The local web interface should allow an operator to:
+The local web interface shall provide:
 
-- View current measurements
-- View device status
-- View measurement history
-- Configure basic settings
-- Configure calibration parameters
-- Download CSV measurement files
+### Dashboard
 
-Initial pages:
+- Current conductivity.
+- Current TOF.
+- Distance.
+- Battery level.
+- System status.
+- Last measurement.
+
+### Measurements
+
+- Measurement history.
+- Timestamp.
+- Measurement values.
+- Status.
+
+### Calibration
+
+- EC calibration.
+- TOF calibration.
+
+### Configuration
+
+- Measurement settings.
+- Sensor settings.
+- Device settings.
+
+### System Status
+
+- Firmware version.
+- Sensor status.
+- RTC status.
+- SD status.
+- Wi-Fi status.
+- Battery status.
+
+---
+
+# 25. REST API Requirements
+
+The device shall expose:
 
 ```text
-Dashboard
-Measurements
-Calibration
-Configuration
-Data Export
-System Status
+GET  /api/device
+
+GET  /api/system/status
+
+GET  /api/measurement/current
+
+POST /api/measurement/start
+
+GET  /api/measurements
+
+GET  /api/export/YYYY-MM-DD.csv
+
+GET  /api/calibration/ec
+
+POST /api/calibration/ec
+
+GET  /api/config
+
+POST /api/config
 ```
 
-The web interface is intended for local use.
+The API shall use JSON where appropriate.
 
-Cloud connectivity is outside the V0.1 scope.
+The API shall not directly access sensor drivers.
 
 ---
 
-## 13. Calibration Requirements
+# 26. Measurement State Requirements
 
-The system must support basic calibration.
+The measurement workflow shall use a defined state machine.
+
+Baseline states:
+
+```text
+IDLE
+START
+TOF_TRIGGER
+TOF_WAIT
+TOF_PROCESS
+EC_READ
+VALIDATE
+DISPLAY
+LOG
+READY
+```
+
+Error states shall handle:
+
+- TOF timeout.
+- TOF sensor failure.
+- EC timeout.
+- EC communication failure.
+- Invalid measurement.
+- SD logging failure.
+
+---
+
+# 27. Measurement Validation
+
+A measurement shall be considered valid only when:
+
+- TOF measurement completed.
+- TOF is within configured limits.
+- Distance is within configured limits.
+- EC sensor responded successfully.
+- Conductivity is within configured limits.
+- Timestamp is available.
+
+Invalid measurements shall not be presented as valid results.
+
+---
+
+# 28. Error Handling Requirements
+
+The system shall detect and report:
+
+### Conductivity errors
+
+- Sensor timeout.
+- RS485 communication error.
+- Modbus CRC error.
+- Invalid response.
+- Sensor disconnection.
+
+### TOF errors
+
+- No echo.
+- Timeout.
+- Invalid TOF.
+- Invalid distance.
+- Sensor disconnection.
+
+### Storage errors
+
+- SD card missing.
+- SD initialization failure.
+- File creation failure.
+- Write failure.
+
+### RTC errors
+
+- RTC unavailable.
+- Invalid time.
+- Communication failure.
+
+### Battery errors
+
+- Low battery.
+- Critical battery.
+- Battery ADC failure.
+
+---
+
+# 29. Configuration Requirements
+
+The following parameters shall be configurable where applicable:
+
+- EC Modbus slave ID.
+- Measurement limits.
+- TOF limits.
+- Speed of sound.
+- Measurement timeout.
+- Calibration parameters.
+- Wi-Fi settings.
+- Device settings.
+
+Configuration shall persist across reboot.
+
+Configuration shall be stored using ESP-IDF NVS.
+
+---
+
+# 30. Calibration Requirements
+
+The device shall support:
+
+## EC Calibration
+
+Calibration shall follow the SEN0707 manufacturer's procedure.
+
+The supplied conductivity calibration solution may be used for verification.
+
+## TOF Calibration
+
+TOF shall support calibration against a known reference distance.
+
+The calibration system must remain replaceable for future ultrasonic hardware.
+
+---
+
+# 31. Firmware Requirements
+
+Firmware shall use:
+
+- ESP-IDF.
+- C++.
+- FreeRTOS through ESP-IDF.
+- LVGL for the TFT UI.
+- ESP-IDF HTTP Server.
+- ESP-IDF NVS.
+- ESP-IDF logging.
+
+The firmware shall use modular components.
+
+---
+
+# 32. Software Architecture Requirements
+
+The software shall separate:
+
+```text
+Application
+    │
+    ▼
+Services
+    │
+    ▼
+Drivers
+    │
+    ▼
+Hardware
+```
+
+The architecture shall include abstraction layers for:
+
+- EC sensors.
+- TOF sensors.
+- Storage.
+- RTC.
+- Display.
+- Input.
+- Power.
+- Wi-Fi.
+
+---
+
+# 33. Reliability Requirements
+
+The device shall:
+
+- Recover from temporary sensor communication failures.
+- Detect sensor timeouts.
+- Avoid indefinite blocking.
+- Use watchdog protection.
+- Handle SD card failure without crashing.
+- Handle Wi-Fi client disconnects.
+- Handle low battery safely.
+- Return to a known state after a failed measurement.
+
+---
+
+# 34. Data Integrity Requirements
+
+Measurement records shall:
+
+- Include timestamps.
+- Use a consistent CSV format.
+- Include measurement status.
+- Avoid partial records where practical.
+- Be written using controlled file operations.
+
+The system should minimize the possibility of corrupting previously recorded measurements.
+
+---
+
+# 35. User Interface Requirements
+
+The UI should prioritize:
+
+1. Current measurement.
+2. Measurement status.
+3. Battery state.
+4. Sensor errors.
+5. Simple navigation.
+
+The user should be able to start a measurement without navigating through multiple menus.
+
+The main measurement screen should remain uncluttered.
+
+---
+
+# 36. Safety Requirements
+
+The hardware and software shall consider:
+
+- Li-ion battery safety.
+- Battery over-discharge.
+- Short-circuit protection.
+- Protected charging.
+- Safe external connectors.
+- Correct voltage levels.
+- ESP32 GPIO protection.
+- HC-SR04 ECHO level shifting.
+- Secure battery mounting.
+- Electrical isolation where required.
+
+---
+
+# 37. Environmental Requirements
+
+The V0.1 enclosure should protect the electronics from normal handling and laboratory use.
+
+The external EC sensor is IP68-rated according to its specification.
+
+The overall analyzer enclosure is not considered IP-rated unless specifically designed and tested for an enclosure rating.
+
+The device should not be treated as a certified industrial instrument.
+
+---
+
+# 38. Performance Requirements
+
+V0.1 should provide:
 
 ### Conductivity
 
-The SEN0707 will be calibrated according to the manufacturer's recommended procedure.
+Target sensor capability:
 
-The system should provide a calibration workflow for entering or verifying the calibration condition.
+- 10 to 20,000 µS/cm.
+- 1 µS/cm resolution.
+- ±1% FS sensor accuracy.
 
-### Ultrasonic
+### TOF
 
-The prototype must provide a method to configure the parameters required for distance calculation.
+The system should provide microsecond-level timing for the prototype HC-SR04 measurement.
 
-A known reference distance should be used during prototype validation.
+The actual distance accuracy must be validated experimentally.
 
-The ultrasonic calibration approach may be revised after testing.
+### User Interface
 
----
+The system should respond to physical input without noticeable delay.
 
-## 14. Sensor Connection Requirements
+### Logging
 
-External sensors must be removable.
-
-The conductivity sensor must not be permanently soldered to the controller.
-
-The ultrasonic sensor must also use a removable connection.
-
-The prototype should use panel-mounted connectors where practical.
-
-The intended architecture is:
-
-```text
-Controller
-    │
-    ├── Removable EC connector
-    │
-    └── Removable ultrasonic connector
-```
-
-This allows the prototype sensors to be replaced later without redesigning the controller.
+A completed valid measurement should be written to the SD card without disrupting normal application operation.
 
 ---
 
-## 15. Prototype Hardware Requirements
+# 39. Portability Requirements
 
-The prototype should use off-the-shelf components.
+The analyzer should:
 
-The initial hardware should include:
-
-- ESP32-S3 development board
-- DFRobot SEN0707
-- RS485 transceiver
-- HC-SR04
-- 4-inch SPI TFT
-- MicroSD module
-- MicroSD card
-- DS3231
-- Rotary encoder
-- START button
-- BACK button
-- Rechargeable battery
-- Battery charger
-- DC-DC converters
-- Connectors
-- Prototype enclosure
-
-A custom PCB is not required for V0.1.
+- Operate from its internal rechargeable battery.
+- Include an integrated display.
+- Include physical controls.
+- Use removable sensors.
+- Operate without external computer connection.
+- Operate without internet connectivity.
 
 ---
 
-## 16. Software Requirements
+# 40. Maintainability Requirements
 
-The firmware will be developed using ESP-IDF.
+The system should allow:
 
-The software should be modular.
+- Sensor replacement.
+- Firmware updates through USB.
+- SD card replacement.
+- Battery replacement where practical.
+- Configuration changes.
+- Calibration updates.
+- Troubleshooting through system diagnostics.
 
-Major software components should include:
-
-```text
-System
-Sensors
- ├── EC
- └── Ultrasonic
-Display
-Input
-Storage
-RTC
-Calibration
-Power
-Wi-Fi
-Web
-Configuration
-```
-
-Sensor drivers must be separated from application logic.
-
-The application should not directly depend on low-level sensor communication code.
+The hardware and software should avoid unnecessary proprietary dependencies.
 
 ---
 
-## 17. Reliability Requirements
+# 41. Prototype Development Requirements
 
-The prototype should handle common failure conditions.
+The project shall follow a prototype-first approach.
 
-The system must detect and report:
+### Phase 1
 
-- EC sensor communication failure
-- EC sensor disconnected
-- Ultrasonic timeout
-- Invalid ultrasonic measurement
-- SD card unavailable
-- RTC communication failure
-- Low battery
-- Invalid configuration
-- Wi-Fi initialization failure
+Prove:
 
-A sensor failure must not cause the entire application to crash.
+- EC communication.
+- Ultrasonic timing.
+- Distance calculation.
+- Basic display.
+- Measurement sequence.
 
----
+### Phase 2
 
-## 18. Safety Requirements
+Add:
 
-The prototype must:
+- RTC.
+- SD logging.
+- Physical controls.
+- Battery operation.
 
-- Use a protected rechargeable battery
-- Include appropriate battery charging protection
-- Prevent direct 5 V HC-SR04 signals from entering ESP32-S3 GPIOs
-- Use appropriate fusing or current protection
-- Keep the higher-voltage SEN0707 supply isolated from ESP32 GPIO signals
-- Provide strain relief for external sensor cables
-- Avoid exposed conductive connections during normal operation
+### Phase 3
 
-The prototype is intended for laboratory development and must not be treated as a certified measurement or safety instrument.
+Add:
 
----
+- Wi-Fi.
+- Web UI.
+- REST API.
+- Configuration.
+- Calibration.
 
-## 19. V0.1 Acceptance Criteria
+### Phase 4
 
-The V0.1 prototype will be considered functional when:
+Perform:
 
-### Controller
-
-- ESP32-S3 boots reliably.
-- Firmware can be updated through USB.
-- Main UI starts successfully.
-
-### Conductivity
-
-- SEN0707 communicates successfully through RS485.
-- Conductivity values can be read by the ESP32-S3.
-- Conductivity is displayed on the TFT.
-
-### Ultrasonic
-
-- HC-SR04 can be triggered.
-- Echo time can be measured.
-- TOF is displayed.
-- Distance is calculated.
-- Invalid or timeout conditions are detected.
-
-### Display
-
-- Measurement values are clearly displayed.
-- Physical controls operate correctly.
-- System status is visible.
-
-### Storage
-
-- SD card can be initialized.
-- Measurement records can be written.
-- CSV files can be generated.
-- Stored data can be retrieved.
-
-### RTC
-
-- Date and time can be configured.
-- Measurements receive timestamps.
-- Time is retained after power loss.
-
-### Battery
-
-- System operates from the battery.
-- Battery can be charged.
-- Battery level can be displayed.
-- Low battery condition is detected.
-
-### Web Interface
-
-- ESP32-S3 can create a local Wi-Fi network.
-- Dashboard can be accessed from a phone or computer.
-- Current measurements can be viewed.
-- CSV data can be downloaded.
+- Repeatability testing.
+- Long-duration testing.
+- Battery testing.
+- Mechanical integration.
+- End-to-end validation.
 
 ---
 
-## 20. Out of Scope for V0.1
+# 42. Production Upgrade Considerations
 
-The following are explicitly excluded from the first prototype:
-
-- Production-grade ultrasonic transducer system
-- Custom ultrasonic analog electronics
-- Custom conductivity electronics
-- Cloud backend
-- Mobile application
-- User accounts
-- Remote monitoring
-- Internet-dependent operation
-- Automatic firmware updates
-- Touchscreen interface
-- AI features
-- Temperature as a user-facing measurement
-- TDS as a user-facing measurement
-- Salinity as a user-facing measurement
-- Industrial certification
-- Production PCB
-- Production enclosure
-- Laboratory certification
-
-These features may be considered in later versions if required.
-
----
-
-## 21. Future Development
+V0.1 shall not be treated as the final production design.
 
 Potential future improvements include:
 
-- Dedicated ultrasonic TX/RX transducers
-- Improved ultrasonic receiver electronics
-- Higher accuracy TOF measurement
-- Custom controller PCB
-- Industrial connectors
-- Improved battery management
-- Larger storage
-- USB data export
-- Advanced calibration
-- Measurement reports
-- Automated test procedures
-- Production-grade enclosure
-- Laboratory validation
-- Measurement accuracy certification
-
-Future features must only be added when they provide a clear benefit to the customer's requirements.
+- Laboratory-grade ultrasonic transducer.
+- Dedicated ultrasonic receiver.
+- Precision acoustic signal processing.
+- Improved TOF timing hardware.
+- Sample cell optimization.
+- Temperature compensation.
+- Improved conductivity measurement architecture.
+- Custom PCB.
+- Improved power management.
+- Improved enclosure.
+- Better sensor connectors.
+- Calibration automation.
+- Cloud connectivity if required.
+- OTA firmware updates.
 
 ---
 
-## 22. Product Development Principle
+# 43. Explicit V0.1 Exclusions
 
-The project will follow an off-the-shelf-first approach.
+The following are outside the V0.1 product scope:
 
-The first prototype should prove the measurement concept before custom hardware is developed.
+- Production-grade liquid ultrasonic measurement.
+- Advanced acoustic signal processing.
+- Dedicated ultrasonic analog front end.
+- Battery current measurement.
+- Battery power measurement.
+- INA226.
+- Dedicated fuel gauge.
+- Detailed battery analytics.
+- Cloud platform.
+- Internet connectivity.
+- Mobile application.
+- Web OTA.
+- GPS.
+- Cellular communication.
+- Touchscreen.
+- Automated sample identification.
+- Industrial certification.
+- Production EMC certification.
+- Final production enclosure certification.
 
-The development sequence is:
+---
+
+# 44. Product Acceptance Criteria
+
+The EC-TOF Analyzer V0.1 is considered functionally complete when:
+
+## Measurement
+
+- Conductivity can be measured.
+- TOF can be measured.
+- Distance can be calculated.
+- Measurements can be validated.
+- Measurement failures are detected.
+
+## User Interface
+
+- TFT displays measurements.
+- Rotary encoder works.
+- START button works.
+- BACK button works.
+- Battery percentage is displayed.
+- System warnings are displayed.
+
+## Data
+
+- RTC provides timestamps.
+- Measurements can be saved to SD.
+- CSV format is correct.
+- SD failures are handled safely.
+
+## Connectivity
+
+- Wi-Fi AP starts.
+- Web dashboard loads.
+- REST API works.
+- Current measurement can be retrieved.
+- Measurement can be started through the API.
+
+## Power
+
+- Battery powers the system.
+- USB-C charging works.
+- Battery voltage is measured.
+- Battery percentage is estimated.
+- Low-battery state is detected.
+- Critical-battery state is detected.
+
+## Reliability
+
+- Sensor communication failures are detected.
+- Measurement timeouts are handled.
+- The system returns to a known state after errors.
+- Extended operation does not cause uncontrolled crashes.
+
+---
+
+# 45. Definition of Done
+
+V0.1 is complete when a user can:
 
 ```text
-Off-the-shelf hardware
-        ↓
-Electrical integration
-        ↓
-Firmware integration
-        ↓
-Measurement testing
-        ↓
-Calibration
-        ↓
-Prototype validation
-        ↓
-Identify limitations
-        ↓
-Upgrade hardware
-        ↓
-Production design
+Power ON
+    │
+    ▼
+Prepare Sample
+    │
+    ▼
+Position Sensors
+    │
+    ▼
+Press START
+    │
+    ▼
+Measure TOF
+    │
+    ▼
+Calculate Distance
+    │
+    ▼
+Measure Conductivity
+    │
+    ▼
+Validate Result
+    │
+    ▼
+View Result
+    │
+    ▼
+Store Result
+    │
+    ▼
+View Result Through Wi-Fi
 ```
 
-The HC-SR04 is specifically considered a feasibility sensor.
-
-The final ultrasonic technology will be selected only after the prototype demonstrates the customer's actual measurement requirements.
+The complete workflow must operate reliably from the internal battery.
 
 ---
 
-## 23. V0.1 Product Definition
+# 46. Final Product Definition
 
-The V0.1 EC-TOF Analyzer is defined as:
+The **EC-TOF Analyzer V0.1** is a portable, battery-powered prototype that combines electrical conductivity measurement with an ultrasonic TOF measurement workflow.
 
-> A portable, battery-powered ESP32-S3 laboratory prototype capable of measuring electrical conductivity using the DFRobot SEN0707, measuring ultrasonic time of flight using an HC-SR04, calculating distance, displaying measurements locally, recording measurements to a MicroSD card, timestamping measurements using an RTC, and providing a local Wi-Fi web interface.
+Its primary purpose is to validate the complete measurement concept and establish a modular platform for future development.
 
-This definition is the baseline for the remaining technical, hardware, software, and implementation documents.
+The V0.1 architecture intentionally separates the conductivity and ultrasonic subsystems from the application layer.
+
+This allows the prototype to use affordable off-the-shelf hardware while preserving a clear upgrade path toward a production-grade ultrasonic measurement system.
+
+The final V0.1 product consists of:
+
+```text
+┌─────────────────────────────────────────────┐
+│              EC-TOF ANALYZER                │
+│                                             │
+│  EC Measurement                             │
+│       │                                     │
+│       ▼                                     │
+│  SEN0707 + RS485                            │
+│                                             │
+│  Ultrasonic TOF                             │
+│       │                                     │
+│       ▼                                     │
+│  HC-SR04 Prototype                          │
+│                                             │
+│  ESP32-S3                                   │
+│       │                                     │
+│       ├── TFT Display                       │
+│       ├── Physical Controls                 │
+│       ├── RTC                               │
+│       ├── MicroSD                           │
+│       ├── Wi-Fi                             │
+│       └── Battery Indicator                 │
+│                                             │
+│  Rechargeable Battery                       │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+This document defines the product baseline for **EC-TOF Analyzer V0.1**.

@@ -1,106 +1,130 @@
-# EC-TOF Analyzer
+# EC-TOF Analyzer V0.1
+# Software Design
 
-## Software Design
+## 1. Purpose
 
-Version: 0.1  
-Status: Prototype Planning  
-Related Documents:
+This document defines the software architecture and implementation design for the EC-TOF Analyzer V0.1 firmware.
 
-- `01-product-requirements.md`
-- `02-technical-requirements.md`
-- `03-system-architecture.md`
-- `04-hardware-design.md`
+The firmware is responsible for:
 
----
+- Conductivity measurement.
+- Ultrasonic TOF measurement.
+- Distance calculation.
+- Measurement sequencing.
+- Measurement validation.
+- Display management.
+- Physical user input.
+- RTC timestamping.
+- MicroSD data logging.
+- Battery voltage measurement.
+- Simple battery percentage estimation.
+- Local Wi-Fi access point.
+- REST API.
+- Configuration storage.
+- Calibration management.
+- System diagnostics.
+- Error handling.
 
-# 1. Purpose
-
-This document defines the software architecture and implementation strategy for the EC-TOF Analyzer V0.1 firmware.
-
-The firmware will run on the ESP32-S3 using ESP-IDF.
-
-The software is designed to:
-
-- Read conductivity from the SEN0707.
-- Communicate with the SEN0707 through RS485 Modbus RTU.
-- Trigger and measure the HC-SR04 ultrasonic sensor.
-- Calculate ultrasonic time of flight.
-- Calculate distance from the measured TOF.
-- Display measurements on the TFT.
-- Accept input from physical controls.
-- Timestamp measurements using the DS3231.
-- Store measurements on MicroSD.
-- Provide a local Wi-Fi web interface.
-- Manage calibration.
-- Manage configuration.
-- Detect and report hardware errors.
-- Keep sensor-specific implementations modular.
+The firmware will use **ESP-IDF with C++**.
 
 ---
 
 # 2. Software Design Principles
 
-The firmware shall follow these principles:
+The firmware should follow these principles:
 
-1. Use ESP-IDF as the primary framework.
-2. Use C++ for application and driver code where practical.
-3. Keep `main.cpp` minimal.
-4. Separate hardware drivers from application logic.
-5. Use interfaces for replaceable sensors.
-6. Keep measurement logic independent from the display.
-7. Keep measurement logic independent from the web interface.
-8. Use FreeRTOS for concurrent system activities where required.
-9. Avoid blocking operations inside time-critical measurement code.
-10. Use deterministic state machines for measurement operations.
-11. Treat SD storage as asynchronous where practical.
-12. Validate sensor data before logging.
-13. Store configuration separately from measurement data.
-14. Keep V0.1 implementation simple enough to debug on hardware.
+1. Keep hardware drivers independent from application logic.
+2. Use interfaces for replaceable sensors.
+3. Keep the measurement sequence deterministic.
+4. Keep UI code separate from sensor code.
+5. Keep web API code separate from hardware drivers.
+6. Avoid unnecessary FreeRTOS tasks.
+7. Avoid blocking operations in time-sensitive measurement code.
+8. Make configuration persistent.
+9. Make sensor failures recoverable where possible.
+10. Keep V0.1 simple enough to debug on real hardware.
+11. Design the TOF subsystem so the HC-SR04 can be replaced later.
+12. Do not make the production ultrasonic design a dependency of V0.1.
+13. Do not implement battery current or power measurement.
 
 ---
 
-# 3. Firmware Architecture
+# 3. Technology Stack
 
-The firmware is divided into five primary layers:
+| Component | Technology |
+|---|---|
+| MCU | ESP32-S3 |
+| Framework | ESP-IDF |
+| Language | C++ |
+| UI | LVGL |
+| Display | ST7796 SPI |
+| EC communication | Modbus RTU |
+| EC physical interface | RS485 |
+| TOF | HC-SR04 V0.1 |
+| Storage | FAT filesystem on MicroSD |
+| RTC | DS3231 |
+| Configuration | ESP-IDF NVS |
+| Network | ESP32 Wi-Fi AP |
+| Web server | ESP-IDF HTTP Server |
+| API | REST/JSON |
+| Logging | ESP-IDF logging + SD logs |
+| Build | ESP-IDF / CMake |
+
+---
+
+# 4. Software Architecture
+
+The firmware uses layered architecture.
 
 ```text
 ┌──────────────────────────────────────────┐
-│              User Interfaces             │
+│              User Interface              │
 │                                          │
-│          TFT UI        Web UI            │
-└───────────────────┬──────────────────────┘
-                    │
-                    ▼
-┌──────────────────────────────────────────┐
-│           Application Services           │
+│       LVGL TFT UI / Web UI               │
+└────────────────────┬─────────────────────┘
+                     │
+┌────────────────────▼─────────────────────┐
+│           Application Layer              │
 │                                          │
-│ Measurement │ Calibration │ Configuration│
-│ System      │ History     │ Power        │
-└───────────────────┬──────────────────────┘
-                    │
-                    ▼
-┌──────────────────────────────────────────┐
-│             Device Services              │
+│ Measurement Manager                      │
+│ Configuration Manager                    │
+│ Calibration Manager                      │
+│ System Manager                           │
+│ Power Manager                            │
+└────────────────────┬─────────────────────┘
+                     │
+┌────────────────────▼─────────────────────┐
+│             Service Layer                │
 │                                          │
-│ EC │ TOF │ RTC │ Storage │ Input │ Wi-Fi │
-└───────────────────┬──────────────────────┘
-                    │
-                    ▼
-┌──────────────────────────────────────────┐
-│             Hardware Drivers             │
+│ EC Manager                               │
+│ TOF Manager                              │
+│ Storage Manager                          │
+│ RTC Manager                              │
+│ Wi-Fi Manager                            │
+│ Web/API Manager                          │
+└────────────────────┬─────────────────────┘
+                     │
+┌────────────────────▼─────────────────────┐
+│             Driver Layer                 │
 │                                          │
-│ UART │ RS485 │ SPI │ I2C │ GPIO │ Timer  │
-└───────────────────┬──────────────────────┘
-                    │
-                    ▼
-┌──────────────────────────────────────────┐
-│                 Hardware                 │
+│ SEN0707 / Modbus                         │
+│ HC-SR04                                  │
+│ RS485                                    │
+│ SPI                                      │
+│ I2C                                      │
+│ GPIO                                     │
+│ ADC                                      │
+│ TFT                                      │
+│ MicroSD                                  │
+│ DS3231                                   │
 └──────────────────────────────────────────┘
 ```
 
+Upper layers must not directly manipulate low-level hardware when a suitable service or driver exists.
+
 ---
 
-# 4. ESP-IDF Project Structure
+# 5. Project Structure
 
 Recommended project structure:
 
@@ -108,8 +132,8 @@ Recommended project structure:
 ec-tof-analyzer/
 │
 ├── CMakeLists.txt
-├── sdkconfig
 ├── sdkconfig.defaults
+├── partitions.csv
 ├── README.md
 │
 ├── main/
@@ -124,18 +148,24 @@ ec-tof-analyzer/
 │   │   ├── calibration_manager.cpp
 │   │   ├── calibration_manager.h
 │   │   ├── configuration_manager.cpp
-│   │   └── configuration_manager.h
+│   │   ├── configuration_manager.h
+│   │   ├── system_manager.cpp
+│   │   └── system_manager.h
 │   │
 │   ├── sensors/
 │   │   ├── ec/
-│   │   │   ├── ec_sensor.h
+│   │   │   ├── iec_sensor.h
+│   │   │   ├── ec_manager.cpp
+│   │   │   ├── ec_manager.h
 │   │   │   ├── sen0707.cpp
 │   │   │   └── sen0707.h
 │   │   │
 │   │   └── tof/
-│   │       ├── tof_sensor.h
-│   │       ├── hcsr04.cpp
-│   │       └── hcsr04.h
+│   │       ├── itof_sensor.h
+│   │       ├── tof_manager.cpp
+│   │       ├── tof_manager.h
+│   │       ├── hc_sr04.cpp
+│   │       └── hc_sr04.h
 │   │
 │   ├── drivers/
 │   │   ├── rs485/
@@ -143,61 +173,66 @@ ec-tof-analyzer/
 │   │   ├── spi/
 │   │   ├── i2c/
 │   │   ├── gpio/
-│   │   └── timer/
+│   │   └── adc/
 │   │
 │   ├── display/
 │   │   ├── display_manager.cpp
 │   │   ├── display_manager.h
-│   │   ├── screens/
-│   │   └── widgets/
+│   │   ├── ui_manager.cpp
+│   │   └── ui_manager.h
 │   │
 │   ├── input/
-│   │   ├── input_manager.cpp
-│   │   ├── input_manager.h
-│   │   └── encoder.cpp
+│   │   ├── encoder.cpp
+│   │   ├── encoder.h
+│   │   ├── buttons.cpp
+│   │   └── buttons.h
 │   │
 │   ├── storage/
 │   │   ├── storage_manager.cpp
 │   │   ├── storage_manager.h
-│   │   └── csv_logger.cpp
+│   │   ├── csv_logger.cpp
+│   │   └── csv_logger.h
 │   │
 │   ├── rtc/
 │   │   ├── rtc_manager.cpp
 │   │   └── rtc_manager.h
 │   │
 │   ├── web/
+│   │   ├── wifi_manager.cpp
+│   │   ├── wifi_manager.h
 │   │   ├── web_server.cpp
 │   │   ├── web_server.h
-│   │   ├── api/
-│   │   └── www/
+│   │   ├── api_handlers.cpp
+│   │   └── api_handlers.h
 │   │
 │   ├── power/
 │   │   ├── power_manager.cpp
 │   │   └── power_manager.h
 │   │
 │   ├── system/
-│   │   ├── system_manager.cpp
-│   │   ├── system_manager.h
-│   │   └── system_events.h
+│   │   ├── error_manager.cpp
+│   │   ├── error_manager.h
+│   │   ├── diagnostics.cpp
+│   │   └── diagnostics.h
 │   │
 │   └── common/
 │       ├── types.h
 │       ├── constants.h
-│       ├── errors.h
-│       └── utilities.h
+│       ├── config.h
+│       └── result.h
 │
 └── components/
 ```
 
-The exact directory structure can be simplified during implementation if a module does not require its own abstraction.
+The exact directory structure can be simplified during implementation if a module is small.
 
 ---
 
-# 5. Main Entry Point
+# 6. Application Startup
 
-`main.cpp` should remain minimal.
+The main entry point should remain small.
 
-Conceptual implementation:
+Example:
 
 ```cpp
 extern "C" void app_main()
@@ -209,342 +244,255 @@ extern "C" void app_main()
 }
 ```
 
-Application initialization should be handled by dedicated managers.
+`AppManager` coordinates system initialization.
+
+The main application should not contain sensor implementation code.
 
 ---
 
-# 6. Common Data Types
+# 7. Application Initialization
 
-Shared types shall be defined in:
+Recommended startup order:
 
 ```text
-main/common/types.h
+Boot
+ │
+ ▼
+ESP-IDF Initialization
+ │
+ ▼
+Load Configuration
+ │
+ ▼
+Initialize GPIO
+ │
+ ▼
+Initialize Power Manager
+ │
+ ▼
+Initialize RTC
+ │
+ ▼
+Initialize SPI
+ │
+ ├── TFT
+ └── MicroSD
+ │
+ ▼
+Initialize UART
+ │
+ ▼
+Initialize RS485
+ │
+ ▼
+Initialize EC Sensor
+ │
+ ▼
+Initialize TOF
+ │
+ ▼
+Initialize Input
+ │
+ ▼
+Initialize Display/UI
+ │
+ ▼
+Initialize Wi-Fi
+ │
+ ▼
+Initialize Web Server
+ │
+ ▼
+System Ready
 ```
 
-Example measurement structure:
+Initialization failures should be reported to the system status manager.
+
+---
+
+# 8. Common Data Types
+
+Shared application structures should be defined in `common/types.h`.
+
+## 8.1 Measurement Data
 
 ```cpp
-struct Measurement
+struct MeasurementData
 {
-    uint32_t id;
+    uint64_t timestamp;
 
-    DateTime timestamp;
+    float conductivityUsCm;
 
-    float conductivity_uS_cm;
-    float tof_us;
-    float distance_mm;
+    float tofUs;
 
-    MeasurementStatus status;
+    float distanceMm;
+
+    bool valid;
+
+    uint32_t sequenceNumber;
 };
 ```
 
-Example status:
+---
+
+# 9. Measurement Status
 
 ```cpp
 enum class MeasurementStatus
 {
+    IDLE,
+    STARTING,
+    MEASURING_TOF,
+    READING_EC,
+    VALIDATING,
+    COMPLETE,
     INVALID,
-    VALID,
-    EC_ERROR,
-    TOF_ERROR,
     TIMEOUT,
-    STORAGE_ERROR
+    SENSOR_ERROR
 };
 ```
 
 ---
 
-# 7. Measurement Manager
-
-The Measurement Manager is the core application service.
-
-Responsibilities:
-
-- Start measurement.
-- Coordinate EC and TOF sensors.
-- Validate results.
-- Calculate derived values.
-- Generate measurement records.
-- Publish measurement events.
-- Send completed records to storage.
-- Update UI state.
-
-The Measurement Manager shall not directly control TFT rendering or write files.
-
----
-
-# 8. Measurement Manager Interface
-
-Conceptual interface:
+# 10. System Status
 
 ```cpp
-class MeasurementManager
+enum class SystemStatus
 {
-public:
-
-    bool initialize();
-
-    bool startMeasurement();
-
-    bool isBusy() const;
-
-    Measurement getCurrentMeasurement();
-
-private:
-
-    void runMeasurement();
-
-    bool measureTof();
-
-    bool measureEc();
-
-    bool validateMeasurement();
+    BOOTING,
+    INITIALIZING,
+    READY,
+    MEASURING,
+    WARNING,
+    ERROR
 };
 ```
 
-The exact interface may change during implementation.
-
 ---
 
-# 9. Measurement State Machine
+# 11. Battery Status
 
-The measurement process shall use an explicit state machine.
-
-```text
-                    ┌─────────────┐
-                    │    IDLE     │
-                    └──────┬──────┘
-                           │ START
-                           ▼
-                  ┌──────────────────┐
-                  │ MEASUREMENT_START│
-                  └────────┬─────────┘
-                           ▼
-                    ┌────────────┐
-                    │ TOF_TRIGGER│
-                    └─────┬──────┘
-                          ▼
-                    ┌────────────┐
-                    │  TOF_WAIT  │
-                    └─────┬──────┘
-                          │
-                 ┌────────┴────────┐
-                 │                 │
-              Success            Timeout
-                 │                 │
-                 ▼                 ▼
-           TOF_PROCESS           ERROR
-                 │
-                 ▼
-               EC_READ
-                 │
-                 ▼
-              VALIDATE
-                 │
-          ┌──────┴──────┐
-          │             │
-        Valid         Invalid
-          │             │
-          ▼             ▼
-       DISPLAY         ERROR
-          │
-          ▼
-          LOG
-          │
-          ▼
-         READY
-```
-
----
-
-# 10. Ultrasonic Driver
-
-The ultrasonic driver shall abstract the HC-SR04.
-
-Interface:
+V0.1 uses voltage-only battery estimation.
 
 ```cpp
-class ITofSensor
+enum class BatteryState
 {
-public:
+    NORMAL,
+    LOW,
+    CRITICAL
+};
 
-    virtual bool initialize() = 0;
-
-    virtual bool trigger() = 0;
-
-    virtual bool waitForEcho(uint32_t timeout_us) = 0;
-
-    virtual float getTofUs() = 0;
-
-    virtual float getDistanceMm() = 0;
-
-    virtual bool isConnected() = 0;
+struct PowerStatus
+{
+    float batteryVoltage;
+    uint8_t batteryPercent;
+    BatteryState state;
 };
 ```
 
-The HC-SR04 implementation shall implement this interface.
+There is intentionally no battery current or battery power field.
 
 ---
 
-# 11. HC-SR04 Measurement
+# 12. EC Sensor Interface
 
-The HC-SR04 sequence is:
+The EC subsystem must use an interface so the sensor implementation can be replaced later.
 
-```text
-Set TRIG LOW
-      ↓
-Wait
-      ↓
-Set TRIG HIGH
-      ↓
-Generate trigger pulse
-      ↓
-Set TRIG LOW
-      ↓
-Wait for ECHO HIGH
-      ↓
-Start timer
-      ↓
-Wait for ECHO LOW
-      ↓
-Stop timer
-      ↓
-Calculate TOF
-```
-
-The implementation shall use a hardware timing mechanism suitable for microsecond measurement.
-
-Possible ESP32-S3 implementation options include:
-
-- RMT
-- GPTimer
-- GPIO interrupt + hardware timer
-
-The selected implementation should prioritize reliable timing and avoid long blocking delays.
-
----
-
-# 12. TOF Calculation
-
-The driver shall provide the measured echo duration.
-
-Example:
-
-```text
-TOF = Echo High Duration
-```
-
-Distance calculation will depend on the validated measurement geometry.
-
-For an air ultrasonic measurement:
-
-```text
-distance = TOF × speed_of_sound / 2
-```
-
-The speed-of-sound assumption must not be blindly reused for a future liquid/acoustic implementation.
-
-The V0.1 firmware shall keep the distance calculation configurable so that the final ultrasonic hardware and propagation medium can be changed later.
-
----
-
-# 13. EC Sensor Interface
-
-The EC sensor shall use an abstraction.
+## 12.1 Interface
 
 ```cpp
 class IEcSensor
 {
 public:
+    virtual ~IEcSensor() = default;
 
     virtual bool initialize() = 0;
 
-    virtual bool readConductivity(float& value) = 0;
+    virtual bool readConductivity(float& conductivityUsCm) = 0;
 
     virtual bool isConnected() = 0;
 
-    virtual bool calibrate() = 0;
+    virtual void reset() = 0;
 };
 ```
 
-The SEN0707 implementation shall use Modbus RTU.
-
 ---
 
-# 14. SEN0707 Driver
+# 13. SEN0707 Driver
 
-The driver shall handle:
-
-- Modbus requests.
-- Modbus responses.
-- CRC validation.
-- Register parsing.
-- Timeout handling.
-- Retry handling.
-- Conductivity conversion.
-- Sensor communication errors.
-
-The driver shall not:
-
-- Draw UI elements.
-- Write SD files.
-- Manage Wi-Fi.
-- Control measurement states.
-
----
-
-# 15. Modbus RTU Architecture
+The SEN0707 implementation will use:
 
 ```text
-EC Service
-    ↓
-SEN0707 Driver
-    ↓
-Modbus RTU
-    ↓
+ESP32 UART
+    │
+    ▼
 RS485 Driver
-    ↓
-UART Driver
-    ↓
-MAX3485
-    ↓
+    │
+    ▼
+Modbus RTU
+    │
+    ▼
 SEN0707
 ```
 
-The Modbus layer should provide generic operations where practical.
+The driver is responsible for:
 
-Example:
+- Modbus request generation.
+- UART transmission.
+- Response reception.
+- CRC validation.
+- Register parsing.
+- Timeout handling.
+- Sensor error handling.
 
-```cpp
-bool readHoldingRegisters(
-    uint8_t address,
-    uint16_t registerAddress,
-    uint16_t count,
-    uint16_t* data
-);
-```
-
-Sensor-specific register mapping belongs in the SEN0707 driver.
+The driver should not update the TFT or write to the SD card.
 
 ---
 
-# 16. RS485 Driver
+# 14. Modbus Driver
 
-The RS485 driver shall manage:
+The Modbus layer should provide:
 
-- UART initialization.
-- TX/RX.
-- Direction control.
-- Communication timeout.
-- Buffer handling.
+```cpp
+class ModbusRtu
+{
+public:
+    bool initialize();
 
-Conceptual interface:
+    bool readHoldingRegisters(
+        uint8_t slaveId,
+        uint16_t address,
+        uint16_t count,
+        uint16_t* data
+    );
+
+    bool writeHoldingRegister(
+        uint8_t slaveId,
+        uint16_t address,
+        uint16_t value
+    );
+};
+```
+
+The exact register map must follow the SEN0707 documentation.
+
+---
+
+# 15. RS485 Driver
+
+The RS485 driver controls:
+
+- UART.
+- DE/RE direction.
+- Transmission timing.
+- Reception timing.
+
+Example interface:
 
 ```cpp
 class Rs485Driver
 {
 public:
-
     bool initialize();
 
     bool transmit(
@@ -552,127 +500,329 @@ public:
         size_t length
     );
 
-    int receive(
+    bool receive(
         uint8_t* buffer,
-        size_t length,
-        uint32_t timeout_ms
+        size_t bufferSize,
+        size_t& received
     );
+};
+```
+
+The RS485 driver must not know about conductivity.
+
+---
+
+# 16. TOF Sensor Interface
+
+The TOF subsystem must be replaceable.
+
+```cpp
+class ITofSensor
+{
+public:
+    virtual ~ITofSensor() = default;
+
+    virtual bool initialize() = 0;
+
+    virtual bool measureTof(float& tofUs) = 0;
+
+    virtual bool isConnected() = 0;
+
+    virtual void reset() = 0;
+};
+```
+
+The HC-SR04 is one implementation of this interface.
+
+---
+
+# 17. HC-SR04 Driver
+
+The HC-SR04 driver is responsible for:
+
+- Trigger pulse.
+- Echo detection.
+- Microsecond timing.
+- Timeout detection.
+- TOF calculation.
+
+It must not directly calculate application-level results.
+
+The driver returns the measured TOF.
+
+---
+
+# 18. TOF Distance Calculation
+
+For the V0.1 air prototype:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+The software should isolate this calculation from the sensor driver.
+
+Example:
+
+```cpp
+float calculateDistanceMm(
+    float tofUs,
+    float speedOfSoundMps
+);
+```
+
+The default speed of sound may be configurable.
+
+The software must not assume that the HC-SR04 air calculation is valid for a future submerged acoustic measurement system.
+
+---
+
+# 19. TOF Manager
+
+The `TofManager` coordinates the sensor and application-level processing.
+
+Responsibilities:
+
+- Start TOF measurement.
+- Receive raw TOF.
+- Validate TOF.
+- Calculate distance.
+- Report errors.
+
+Example:
+
+```cpp
+struct TofMeasurement
+{
+    float tofUs;
+    float distanceMm;
+    bool valid;
 };
 ```
 
 ---
 
-# 17. Modbus Error Handling
+# 20. Measurement Manager
 
-Possible errors:
+The Measurement Manager is the core application component.
 
-```text
-MODBUS_TIMEOUT
-MODBUS_CRC_ERROR
-MODBUS_EXCEPTION
-MODBUS_INVALID_RESPONSE
-MODBUS_UART_ERROR
-RS485_ERROR
-SENSOR_DISCONNECTED
-```
+It controls the complete measurement sequence.
 
-The sensor driver shall convert low-level errors into application-level sensor status.
+### Responsibilities
 
----
+- Start measurement.
+- Coordinate TOF.
+- Coordinate EC.
+- Validate results.
+- Create measurement records.
+- Update system state.
+- Notify display.
+- Notify storage.
+- Notify web clients.
 
-# 18. Display Architecture
-
-The display system shall be separated into:
-
-```text
-Display Manager
-      ↓
-Screen Manager
-      ↓
-UI Components
-      ↓
-ST7796 Driver
-      ↓
-SPI
-```
-
-LVGL may be used for the UI layer if the selected display driver and project configuration support it cleanly.
-
-The display driver shall remain independent from measurement logic.
+The Measurement Manager must not directly access GPIO, SPI, or UART drivers.
 
 ---
 
-# 19. Main Display
-
-The main screen should show:
+# 21. Measurement State Machine
 
 ```text
-┌─────────────────────────────────────┐
-│          EC-TOF ANALYZER            │
-│                                     │
-│ Conductivity                        │
-│ 4.82 mS/cm                          │
-│                                     │
-│ TOF                                 │
-│ 12.482 µs                           │
-│                                     │
-│ Distance                            │
-│ 18.73 mm                            │
-│                                     │
-│ Status: READY                       │
-│                                     │
-│        [ START ]                    │
-└─────────────────────────────────────┘
+             ┌───────────┐
+             │   IDLE    │
+             └─────┬─────┘
+                   │ START
+                   ▼
+             ┌───────────┐
+             │  START    │
+             └─────┬─────┘
+                   ▼
+          ┌────────────────┐
+          │  TOF_TRIGGER   │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │    TOF_WAIT    │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │  TOF_PROCESS   │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │    EC_READ     │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │   VALIDATE     │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │    DISPLAY     │
+          └───────┬────────┘
+                  ▼
+          ┌────────────────┐
+          │      LOG       │
+          └───────┬────────┘
+                  ▼
+             ┌───────────┐
+             │  READY    │
+             └───────────┘
 ```
 
-The exact visual design will be defined separately.
+Error paths must return the application to a safe state.
 
 ---
 
-# 20. UI Screens
+# 22. Measurement Validation
 
-V0.1 screens:
+A measurement is valid only when:
 
-```text
-1. Main Measurement
-2. Measurement History
-3. Calibration
-4. Configuration
-5. System Status
-6. About
-```
-
-Navigation shall be optimized for the rotary encoder.
-
----
-
-# 21. UI Navigation
+- TOF measurement completed.
+- TOF is within configured limits.
+- Distance is within configured limits.
+- EC sensor responded successfully.
+- Conductivity is within configured limits.
+- Required timestamp is available.
 
 Example:
 
-```text
-MAIN
- │
- ├── Start Measurement
- │
- ├── History
- │
- ├── Calibration
- │    ├── EC Calibration
- │    └── TOF Calibration
- │
- ├── Configuration
- │
- └── System Status
+```cpp
+bool validateMeasurement(
+    const MeasurementData& measurement
+);
 ```
 
-START should provide a direct measurement action without requiring menu navigation.
+Invalid measurements should not be logged as normal valid results.
+
+They may still be recorded in diagnostic logs.
 
 ---
 
-# 22. Input Manager
+# 23. Measurement Sequence Timing
 
-The Input Manager converts physical inputs into application events.
+The firmware should use timeouts for every external operation.
+
+Examples:
+
+| Operation | Timeout |
+|---|---:|
+| HC-SR04 echo | Configurable |
+| RS485 response | Configurable |
+| SD write | Configurable |
+| RTC transaction | Configurable |
+| Wi-Fi operation | Configurable |
+
+No external device should be allowed to block the main application indefinitely.
+
+---
+
+# 24. Display Architecture
+
+The display subsystem is divided into:
+
+```text
+Display Manager
+      │
+      ▼
+UI Manager
+      │
+      ▼
+LVGL
+      │
+      ▼
+ST7796 Driver
+```
+
+The display should consume application data.
+
+It should not directly query:
+
+- SEN0707.
+- HC-SR04.
+- DS3231.
+- MicroSD.
+
+---
+
+# 25. Display Screens
+
+V0.1 should provide the following screens.
+
+## Main Screen
+
+Shows:
+
+- Conductivity.
+- TOF.
+- Distance.
+- Measurement status.
+- Battery percentage.
+
+## Measurement Screen
+
+Shows:
+
+- Current measurement.
+- Measurement sequence.
+- Sensor status.
+
+## Calibration Screen
+
+Provides access to:
+
+- EC calibration.
+- TOF calibration.
+
+## Configuration Screen
+
+Provides:
+
+- Sensor settings.
+- Measurement limits.
+- Speed of sound.
+- Device settings.
+
+## System Status Screen
+
+Shows:
+
+- Firmware version.
+- RTC status.
+- SD status.
+- EC sensor status.
+- TOF status.
+- Wi-Fi status.
+- Battery status.
+
+---
+
+# 26. Input Architecture
+
+The input system abstracts physical controls.
+
+```text
+Rotary Encoder
+      │
+      ▼
+Input Manager
+      │
+      ├── Rotate
+      ├── Press
+      │
+START Button
+      │
+      ├── Press
+      │
+BACK Button
+      │
+      └── Press
+```
+
+The UI layer consumes input events rather than directly reading GPIO.
+
+---
+
+# 27. Input Events
 
 Example:
 
@@ -680,409 +830,495 @@ Example:
 enum class InputEvent
 {
     NONE,
-    ENCODER_UP,
-    ENCODER_DOWN,
-    SELECT,
-    START,
-    BACK
+    ENCODER_CW,
+    ENCODER_CCW,
+    ENCODER_PRESS,
+    START_PRESS,
+    BACK_PRESS
 };
 ```
 
-The UI should consume these events rather than reading GPIO pins directly.
-
 ---
 
-# 23. Input Debouncing
-
-Mechanical buttons shall use software debouncing.
-
-The debounce period should be configurable.
-
-The encoder should also use suitable filtering to prevent false transitions.
-
----
-
-# 24. RTC Manager
+# 28. RTC Manager
 
 The RTC Manager abstracts the DS3231.
 
-Interface:
+Example:
 
 ```cpp
 class RtcManager
 {
 public:
-
     bool initialize();
 
     bool getDateTime(DateTime& time);
 
     bool setDateTime(const DateTime& time);
 
-    bool isAvailable();
+    bool isValid();
 };
 ```
 
-The RTC is the source of timestamps for measurement records.
+The rest of the application should not directly access the I2C driver.
 
 ---
 
-# 25. Time Synchronization
+# 29. Timestamp Format
 
-V0.1 does not require internet time.
-
-The system should support:
+Application timestamps should use:
 
 ```text
-RTC time
-```
-
-Optionally, the web interface may provide a manual date/time setting function.
-
-Future versions may support NTP when connected to a network.
-
----
-
-# 26. Storage Manager
-
-The Storage Manager abstracts the MicroSD card.
-
-Responsibilities:
-
-- Mount filesystem.
-- Create directories.
-- Create measurement files.
-- Write CSV records.
-- Flush data.
-- Read stored measurements.
-- Export files.
-- Detect SD errors.
-
-Interface:
-
-```cpp
-class StorageManager
-{
-public:
-
-    bool initialize();
-
-    bool isAvailable();
-
-    bool writeMeasurement(
-        const Measurement& measurement
-    );
-
-    bool readHistory();
-
-    bool exportData();
-};
-```
-
----
-
-# 27. Storage Directory Structure
-
-Recommended:
-
-```text
-/ECTOF/
-│
-├── config/
-│
-├── data/
-│   └── YYYY/
-│       └── MM/
-│           └── DD.csv
-│
-└── logs/
+YYYY-MM-DDTHH:MM:SS
 ```
 
 Example:
 
 ```text
-/ECTOF/data/2026/10/08.csv
+2026-10-08T15:32:10
 ```
+
+The timestamp is generated from the DS3231.
 
 ---
 
-# 28. CSV Format
-
-Measurement records shall use:
+# 30. Storage Architecture
 
 ```text
+Storage Manager
+      │
+      ├── SD Manager
+      │
+      ├── CSV Logger
+      │
+      └── System Logger
+```
+
+The Storage Manager handles SD initialization and availability.
+
+The CSV Logger handles measurement records.
+
+---
+
+# 31. CSV Measurement Logging
+
+Format:
+
+```csv
 timestamp,conductivity,tof_us,distance_mm,status
-```
-
-Example:
-
-```text
 2026-10-08T15:32:10,4820,12.482,18.73,VALID
 ```
 
-CSV shall remain the primary measurement export format for V0.1.
+The logger should:
+
+1. Create the directory if required.
+2. Create the daily CSV file.
+3. Add the header if the file is new.
+4. Append the measurement.
+5. Flush the file.
+6. Close the file when appropriate.
+
+The exact buffering strategy can be optimized after initial testing.
 
 ---
 
-# 29. Logging Strategy
+# 32. Storage Failure Handling
 
-A measurement shall be written after the measurement is validated.
-
-Sequence:
+If the SD card is unavailable:
 
 ```text
-Measurement Complete
-        ↓
-Create Record
-        ↓
-Queue Record
-        ↓
-Storage Task
-        ↓
-Write CSV
-        ↓
-Flush
+Measurement
+    │
+    ▼
+Valid Result
+    │
+    ├────► Display
+    │
+    ├────► Web API
+    │
+    └────► SD Logger
+                │
+                ▼
+             FAILURE
+                │
+                ▼
+          Warning Status
 ```
 
-The measurement process should not wait unnecessarily for slow SD operations.
+The measurement must not fail solely because the SD card is unavailable.
 
 ---
 
-# 30. SD Error Handling
+# 33. Configuration Manager
 
-Possible errors:
+Configuration is stored using ESP-IDF NVS.
 
-```text
-SD_NOT_PRESENT
-SD_MOUNT_FAILED
-SD_WRITE_FAILED
-SD_READ_FAILED
-SD_FILE_ERROR
-SD_FULL
-```
+The Configuration Manager handles:
 
-A storage failure should not prevent the user from continuing measurements unless data integrity requires the measurement process to stop.
+- Loading configuration.
+- Saving configuration.
+- Default values.
+- Validation.
+- Configuration versioning.
 
-The UI shall clearly indicate when logging is unavailable.
-
----
-
-# 31. Configuration Manager
-
-Configuration values shall be centralized.
-
-Possible configuration:
+Example:
 
 ```cpp
-struct DeviceConfig
+struct AppConfig
 {
-    uint8_t modbusAddress;
+    uint8_t ecSlaveId;
 
-    uint32_t modbusTimeoutMs;
+    float minConductivityUsCm;
+    float maxConductivityUsCm;
 
-    uint8_t measurementRetries;
+    float minDistanceMm;
+    float maxDistanceMm;
 
-    float tofCalibrationOffset;
-
-    float tofScaleFactor;
-
-    float ecCalibrationFactor;
-
-    uint32_t displayBrightness;
-
-    bool autoLogging;
+    float speedOfSoundMps;
 
     uint32_t measurementTimeoutMs;
 };
 ```
 
-Only required configuration values should be implemented in V0.1.
-
 ---
 
-# 32. Configuration Storage
+# 34. Configuration Persistence
 
-Configuration may be stored using ESP-IDF NVS.
+Configuration must survive reboot.
 
-Architecture:
-
-```text
-Configuration Manager
-        ↓
-ESP-IDF NVS
-        ↓
-Flash
-```
-
-Measurement records remain on MicroSD.
-
-NVS should not be used for large measurement datasets.
-
----
-
-# 33. Calibration Manager
-
-The Calibration Manager shall control calibration workflows.
-
-Architecture:
+Startup behavior:
 
 ```text
-Calibration UI
-      ↓
-Calibration Manager
-      ├── EC Calibration
-      └── TOF Calibration
-              ↓
-       Configuration
+Boot
+ │
+ ▼
+Read NVS
+ │
+ ├── Valid configuration
+ │       │
+ │       ▼
+ │    Load config
+ │
+ └── Invalid/missing
+         │
+         ▼
+     Load defaults
+         │
+         ▼
+     Save defaults
 ```
 
 ---
 
-# 34. EC Calibration
+# 35. Configuration Versioning
 
-The EC calibration process shall follow the selected SEN0707 calibration procedure.
+NVS configuration should include a version number.
 
-The application should provide:
+Example:
+
+```cpp
+struct ConfigMetadata
+{
+    uint16_t version;
+};
+```
+
+If the firmware detects an incompatible version, it should migrate or reset the configuration to defaults.
+
+---
+
+# 36. Calibration Manager
+
+The Calibration Manager handles:
+
+- EC calibration configuration.
+- TOF calibration.
+- Calibration validation.
+- Calibration persistence.
+
+Calibration values must be stored in NVS.
+
+---
+
+# 37. EC Calibration
+
+The SEN0707 follows the manufacturer's calibration procedure.
+
+The supplied conductivity calibration solution can be used for verification.
+
+The software should provide a calibration workflow without embedding sensor-specific assumptions into the UI.
+
+Example:
 
 ```text
-Enter Calibration
-      ↓
-Prepare Standard
-      ↓
+Calibration
+     │
+     ▼
+Select EC Calibration
+     │
+     ▼
+Prepare Calibration Solution
+     │
+     ▼
 Read Sensor
-      ↓
-Validate Reading
-      ↓
+     │
+     ▼
+Verify Value
+     │
+     ▼
 Apply Calibration
-      ↓
+     │
+     ▼
 Save Configuration
-      ↓
-Calibration Complete
 ```
 
-The calibration standard and exact procedure shall be based on the sensor manufacturer's documented method.
+The exact calibration commands must follow the SEN0707 documentation.
 
 ---
 
-# 35. TOF Calibration
+# 38. TOF Calibration
 
-The V0.1 TOF calibration should use a known reference distance.
+V0.1 TOF calibration uses a known reference distance.
 
 Example:
 
 ```text
 Known Distance
-      ↓
-Perform Measurement
-      ↓
-Compare Measured Distance
-      ↓
-Calculate Correction
-      ↓
+      │
+      ▼
+Measure TOF
+      │
+      ▼
+Calculate Error
+      │
+      ▼
+Apply Calibration Factor/Offset
+      │
+      ▼
 Save Calibration
 ```
 
-A simple correction model may initially use:
+The calibration model must remain replaceable.
+
+The V0.1 air calibration must not be assumed valid for a future liquid/acoustic system.
+
+---
+
+# 39. Power Manager
+
+The Power Manager handles simple battery monitoring.
+
+Responsibilities:
+
+- Read battery ADC.
+- Convert ADC reading to battery voltage.
+- Estimate battery percentage.
+- Determine battery state.
+- Notify UI.
+- Report low-battery condition.
+
+It does not measure current.
+
+---
+
+# 40. Battery Voltage Calculation
+
+The battery voltage is measured through a resistor divider.
+
+Conceptually:
 
 ```text
-corrected_distance =
-    measured_distance × scale + offset
+Battery Voltage
+      │
+      ▼
+Voltage Divider
+      │
+      ▼
+ESP32 ADC
+      │
+      ▼
+ADC Voltage
+      │
+      ▼
+Divider Calculation
+      │
+      ▼
+Battery Voltage
 ```
 
-The model can be expanded later if required.
+The divider ratio must be stored in configuration or constants.
+
+ADC calibration should be applied where appropriate.
 
 ---
 
-# 36. System Manager
+# 41. Battery Percentage
 
-The System Manager coordinates global system state.
+A simple voltage-based estimate is used.
 
-Possible states:
+Example:
+
+```cpp
+uint8_t estimateBatteryPercent(float voltage);
+```
+
+The mapping is:
+
+| Voltage | Estimated Level |
+|---:|---:|
+| ≥ 4.10 V | 100% |
+| 4.00–4.09 V | 80% |
+| 3.90–3.99 V | 60% |
+| 3.80–3.89 V | 50% |
+| 3.70–3.79 V | 35% |
+| 3.60–3.69 V | 20% |
+| 3.50–3.59 V | 10% |
+| ≤ 3.40 V | Critical |
+
+This is an approximate user-facing indicator.
+
+It must not be presented as a precision state-of-charge measurement.
+
+---
+
+# 42. Low Battery Handling
+
+Battery states:
 
 ```text
-BOOTING
-INITIALIZING
-READY
-MEASURING
-ERROR
-CALIBRATION
-LOW_BATTERY
+NORMAL
+LOW
+CRITICAL
 ```
 
-The System Manager shall provide a single source of truth for system status.
+Recommended behavior:
+
+### NORMAL
+
+Normal operation.
+
+### LOW
+
+- Display warning.
+- Allow normal operation.
+- Continue monitoring voltage.
+
+### CRITICAL
+
+- Display critical battery warning.
+- Prevent new measurements if required.
+- Save pending data where possible.
+- Prepare for safe shutdown.
 
 ---
 
-# 37. Power Manager
+# 43. Wi-Fi Architecture
 
-The Power Manager shall monitor:
-
-- Battery voltage.
-- Low-battery condition.
-- Power rail status where available.
-
-Future versions may control:
-
-- Sensor power.
-- Display backlight.
-- Peripheral power.
-- Sleep modes.
-
----
-
-# 38. Wi-Fi Architecture
-
-V0.1 shall operate as a local Wi-Fi access point.
+The ESP32-S3 operates as a local Wi-Fi access point.
 
 Example:
 
 ```text
 SSID:
 EC-TOF-Analyzer
-```
 
-Example address:
-
-```text
+IP:
 192.168.4.1
 ```
 
-The exact SSID and password should be configurable.
+The exact SSID and network configuration should be configurable.
+
+No internet connection is required.
 
 ---
 
-# 39. Web Server
+# 44. Web Server
 
-The ESP32-S3 shall host a local HTTP server.
-
-Architecture:
+The web server provides a local browser interface.
 
 ```text
 Browser
    │
+   │ Wi-Fi
+   ▼
+ESP32-S3
+   │
    ▼
 HTTP Server
    │
-   ▼
-REST API
+   ├── Web UI
    │
-   ▼
-Application Services
+   └── REST API
 ```
 
-The web server shall not directly communicate with sensors.
+The web UI must consume application data.
+
+It must not directly communicate with sensor drivers.
 
 ---
 
-# 40. REST API
+# 45. Web Pages
 
-Initial API:
+V0.1 should provide:
+
+## Dashboard
+
+Shows:
+
+- Current conductivity.
+- Current TOF.
+- Distance.
+- Battery.
+- System status.
+- Last measurement.
+
+## Measurements
+
+Shows:
+
+- Measurement history.
+- Measurement details.
+- Timestamp.
+
+## Calibration
+
+Provides:
+
+- EC calibration.
+- TOF calibration.
+
+## Configuration
+
+Provides:
+
+- Measurement settings.
+- Sensor settings.
+- Network settings.
+
+## System Status
+
+Shows:
+
+- Firmware.
+- Sensors.
+- RTC.
+- SD.
+- Wi-Fi.
+- Battery.
+
+---
+
+# 46. REST API
+
+V0.1 API:
 
 ```text
 GET  /api/device
+
 GET  /api/system/status
 
 GET  /api/measurement/current
+
 POST /api/measurement/start
 
 GET  /api/measurements
@@ -1090,104 +1326,267 @@ GET  /api/measurements
 GET  /api/export/YYYY-MM-DD.csv
 
 GET  /api/calibration/ec
+
 POST /api/calibration/ec
 
 GET  /api/config
+
 POST /api/config
 ```
 
-The API should remain small in V0.1.
-
 ---
 
-# 41. Web Dashboard
+# 47. Device API
 
-The dashboard should display:
+Example:
 
-```text
-EC-TOF ANALYZER
-
-Conductivity
-4.82 mS/cm
-
-TOF
-12.482 µs
-
-Distance
-18.73 mm
-
-Status
-READY
-
-[ START MEASUREMENT ]
+```json
+{
+    "device": "EC-TOF-Analyzer",
+    "firmware": "0.1.0",
+    "hardware": "V0.1"
+}
 ```
 
-Additional information:
+---
 
-- SD status
-- RTC status
-- Sensor status
-- Battery status
+# 48. System Status API
+
+Example:
+
+```json
+{
+    "status": "READY",
+    "battery_voltage": 3.82,
+    "battery_percent": 52,
+    "battery_state": "NORMAL",
+    "rtc": "OK",
+    "sd": "OK",
+    "ec_sensor": "OK",
+    "tof_sensor": "OK",
+    "wifi": "AP"
+}
+```
+
+There are intentionally no battery current or battery power fields.
 
 ---
 
-# 42. Web Measurement Flow
+# 49. Current Measurement API
 
-When the user selects START:
+Example:
 
-```text
-Browser
-   ↓
+```json
+{
+    "timestamp": "2026-10-08T15:32:10",
+    "conductivity_us_cm": 4820,
+    "tof_us": 12.482,
+    "distance_mm": 18.73,
+    "status": "VALID"
+}
+```
+
+---
+
+# 50. Start Measurement API
+
+Request:
+
+```http
 POST /api/measurement/start
-   ↓
-Measurement Manager
-   ↓
-Measurement Sequence
-   ↓
-Measurement Result
-   ↓
-Browser polls current result
 ```
 
-The HTTP request should not remain blocked for the entire measurement duration if the measurement can take significant time.
+Example response:
+
+```json
+{
+    "accepted": true,
+    "status": "MEASURING"
+}
+```
+
+The API should not block while waiting for the measurement to finish.
 
 ---
 
-# 43. Web History
+# 51. Measurement History API
 
-The web UI shall allow the user to view stored measurements.
+```http
+GET /api/measurements
+```
+
+The API may return recent measurements.
+
+Example:
+
+```json
+{
+    "count": 2,
+    "measurements": [
+        {
+            "timestamp": "2026-10-08T15:32:10",
+            "conductivity_us_cm": 4820,
+            "tof_us": 12.482,
+            "distance_mm": 18.73,
+            "status": "VALID"
+        }
+    ]
+}
+```
+
+---
+
+# 52. Firmware Update
+
+V0.1 firmware updates are performed through USB.
+
+Web-based OTA is not required for the initial prototype.
+
+A future version may add:
+
+```text
+Web UI
+   │
+   ▼
+Firmware Upload
+   │
+   ▼
+OTA
+   │
+   ▼
+ESP32-S3
+```
+
+---
+
+# 53. FreeRTOS Task Architecture
+
+The firmware should use a limited number of tasks.
+
+Recommended tasks:
+
+```text
+Main/Application Task
+        │
+        ├── Measurement Task
+        ├── UI Task
+        ├── Storage Task
+        └── Web Task
+```
+
+Not every module requires its own task.
+
+Drivers should normally execute within the task that owns the operation.
+
+---
+
+# 54. Measurement Task
+
+Responsibilities:
+
+- Process measurement requests.
+- Run the measurement state machine.
+- Communicate with TOF.
+- Communicate with EC.
+- Validate results.
+- Publish measurement results.
+
+The task should not directly render the UI.
+
+---
+
+# 55. UI Task
+
+Responsibilities:
+
+- Run LVGL.
+- Process display updates.
+- Process user interface events.
+- Render status.
+
+The UI task receives application state.
+
+---
+
+# 56. Storage Task
+
+The storage task may be used to prevent SD writes from delaying measurement operations.
 
 Example:
 
 ```text
-Date        EC       TOF       Distance
-------------------------------------------------
-2026-10-08  4820     12.482    18.73
-2026-10-08  4831     12.510    18.77
-2026-10-08  4812     12.461    18.70
+Measurement Task
+      │
+      ▼
+Measurement Queue
+      │
+      ▼
+Storage Task
+      │
+      ▼
+MicroSD
 ```
 
-CSV export shall be available.
+If initial testing shows SD operations are fast enough, the architecture may be simplified.
 
 ---
 
-# 44. Web Calibration
+# 57. Web Task
 
-Calibration controls should be protected from accidental activation.
+The ESP-IDF HTTP server handles web requests.
 
-The interface should clearly indicate:
+API handlers should communicate with application managers.
+
+They should not directly access low-level drivers.
+
+---
+
+# 58. Inter-Task Communication
+
+Possible mechanisms:
+
+- FreeRTOS queues.
+- Event groups.
+- Mutexes.
+- Notifications.
+
+Use the simplest mechanism that meets the requirement.
+
+### Example
 
 ```text
-Calibration Mode
+START Button
+     │
+     ▼
+Measurement Request Queue
+     │
+     ▼
+Measurement Task
 ```
-
-before modifying calibration parameters.
 
 ---
 
-# 45. System Event Architecture
+# 59. Shared State
 
-System events should use a common event mechanism.
+Shared application state should be protected.
+
+Examples:
+
+- Current measurement.
+- System status.
+- Battery status.
+- Sensor status.
+- Configuration.
+
+Use a mutex or controlled ownership model where required.
+
+Avoid unrestricted global variables.
+
+---
+
+# 60. Event-Based System Status
+
+Important system events should be represented consistently.
 
 Example:
 
@@ -1197,1135 +1596,985 @@ enum class SystemEvent
     SYSTEM_READY,
     MEASUREMENT_STARTED,
     MEASUREMENT_COMPLETE,
-    MEASUREMENT_ERROR,
-    SENSOR_ERROR,
+    MEASUREMENT_FAILED,
+    EC_SENSOR_ERROR,
+    TOF_SENSOR_ERROR,
     SD_ERROR,
     RTC_ERROR,
     LOW_BATTERY
 };
 ```
 
-Events may be distributed through FreeRTOS queues or ESP-IDF event mechanisms.
-
 ---
 
-# 46. FreeRTOS Tasks
+# 61. Error Handling
 
-Initial task architecture:
+Errors should be categorized.
 
 ```text
-┌───────────────────────────────┐
-│          FreeRTOS             │
-│                               │
-│ System Task                   │
-│ Measurement Task              │
-│ UI Task                       │
-│ Storage Task                  │
-│ Web Task                      │
-│ Input Task                    │
-└───────────────────────────────┘
+INFO
+WARNING
+ERROR
+CRITICAL
 ```
 
-The final implementation should avoid creating tasks without a clear need.
+Examples:
+
+### WARNING
+
+- Low battery.
+- SD card unavailable.
+
+### ERROR
+
+- EC sensor timeout.
+- TOF timeout.
+- RTC communication failure.
+
+### CRITICAL
+
+- Critical battery.
+- Invalid power condition.
+- Hardware condition requiring shutdown.
 
 ---
 
-# 47. Measurement Task
+# 62. Sensor Recovery
 
-Responsibilities:
+The firmware should attempt recovery where practical.
+
+Example:
 
 ```text
-Receive measurement request
-        ↓
-Run state machine
-        ↓
-Read TOF
-        ↓
-Read EC
-        ↓
-Validate
-        ↓
-Publish result
+EC Timeout
+    │
+    ▼
+Retry
+    │
+    ├── Success → Continue
+    │
+    └── Failure
+          │
+          ▼
+     Sensor Error
 ```
 
-The task shall have a higher priority than non-critical UI and web operations if required for timing reliability.
+The retry count must be limited.
+
+The firmware must never retry indefinitely.
 
 ---
 
-# 48. Storage Task
+# 63. Watchdog Strategy
 
-Responsibilities:
+The ESP32-S3 watchdog should be enabled according to ESP-IDF recommendations.
 
-```text
-Receive measurement record
-        ↓
-Write CSV
-        ↓
-Flush
-        ↓
-Report result
+Long operations must yield appropriately.
+
+Potential watchdog-sensitive areas:
+
+- SD operations.
+- Wi-Fi operations.
+- LVGL processing.
+- Sensor communication.
+
+No blocking loop should run indefinitely.
+
+---
+
+# 64. Logging
+
+Firmware logging should use ESP-IDF logging.
+
+Example:
+
+```cpp
+ESP_LOGI(TAG, "Measurement started");
+ESP_LOGI(TAG, "Conductivity: %.2f uS/cm", conductivity);
+ESP_LOGI(TAG, "TOF: %.3f us", tof);
+ESP_LOGE(TAG, "SEN0707 timeout");
 ```
 
-Storage operations should not block time-sensitive sensor operations.
-
----
-
-# 49. UI Task
-
-Responsibilities:
-
-- Render screen.
-- Process UI state.
-- Update measurement values.
-- Show errors.
-- Show system status.
-
-The UI shall not directly access sensor hardware.
-
----
-
-# 50. Web Task
-
-Responsibilities:
-
-- Run HTTP server.
-- Process REST requests.
-- Serve static files.
-- Request measurements.
-- Read history.
-- Manage configuration.
-
-The web task shall communicate with application services.
-
----
-
-# 51. Input Task
-
-Responsibilities:
-
-- Read encoder.
-- Read buttons.
-- Debounce inputs.
-- Generate input events.
-
-The input task should not directly perform measurements.
-
----
-
-# 52. Concurrency Model
-
-The preferred communication model is:
-
-```text
-                 ┌─────────────┐
-                 │ Input Task  │
-                 └──────┬──────┘
-                        │
-                        ▼
-                  Input Queue
-                        │
-                        ▼
-                Application
-                        │
-             ┌──────────┴──────────┐
-             ▼                     ▼
-      Measurement Task          UI Task
-             │
-             ▼
-      Measurement Queue
-             │
-       ┌─────┴─────┐
-       ▼           ▼
- Storage Task    Web State
-```
-
-Shared state shall be protected using mutexes where required.
-
----
-
-# 53. Thread Safety
-
-Shared objects include:
-
-- Current measurement.
-- System state.
-- Configuration.
-- Sensor status.
-- Storage status.
-
-Access should use:
-
-- Mutexes.
-- Queues.
-- Event groups.
-- Atomic variables where appropriate.
-
-Avoid using global mutable variables without synchronization.
-
----
-
-# 54. Logging
-
-The firmware should use ESP-IDF logging.
-
-Recommended levels:
+Use appropriate log levels:
 
 ```text
 ESP_LOGE
 ESP_LOGW
 ESP_LOGI
 ESP_LOGD
+ESP_LOGV
 ```
 
-Example:
-
-```text
-I (1234) EC: SEN0707 initialized
-I (1250) TOF: HC-SR04 initialized
-I (1300) STORAGE: SD mounted
-W (1500) EC: Modbus timeout
-E (1600) STORAGE: Failed to write record
-```
-
-Debug logging should be configurable.
+Production builds may reduce debug logging.
 
 ---
 
-# 55. Error Model
+# 65. Diagnostics
 
-Errors shall be categorized.
-
-```text
-Hardware Errors
-    ↓
-Driver Errors
-    ↓
-Service Errors
-    ↓
-Application Errors
-    ↓
-User-visible Status
-```
-
-Example:
-
-```text
-MODBUS_TIMEOUT
-      ↓
-EC_SENSOR_ERROR
-      ↓
-MEASUREMENT_ERROR
-      ↓
-"EC SENSOR ERROR"
-```
-
----
-
-# 56. Watchdog Strategy
-
-The ESP32-S3 watchdog mechanisms should be enabled according to ESP-IDF defaults and system requirements.
-
-Tasks must not block indefinitely.
-
-Long-running operations shall have:
-
-- Timeouts.
-- Recovery paths.
-- Error handling.
-
----
-
-# 57. Sensor Timeout Strategy
-
-Every external sensor operation shall have a timeout.
-
-Example:
-
-```text
-EC request
-   ↓
-Wait
-   ↓
-Response?
- ┌─┴─┐
-Yes  No
- │    │
- ▼    ▼
-OK   Retry
-       │
-       ▼
-    Timeout
-```
-
-The system shall never wait indefinitely for a disconnected sensor.
-
----
-
-# 58. Measurement Validation
-
-Before a measurement is marked valid:
-
-```text
-TOF Valid?
-    │
-    ▼
-Distance Valid?
-    │
-    ▼
-EC Valid?
-    │
-    ▼
-Values Within Expected Range?
-    │
-    ▼
-Timestamp Valid?
-    │
-    ▼
-Measurement VALID
-```
-
-Invalid values shall not be silently logged as valid measurements.
-
----
-
-# 59. Sensor Disconnect Handling
-
-The system shall detect communication failures.
-
-For EC:
-
-```text
-No Modbus response
-       ↓
-Retry
-       ↓
-Sensor Error
-```
-
-For ultrasonic:
-
-```text
-No ECHO
-   ↓
-Timeout
-   ↓
-TOF Error
-```
-
-The display should identify which subsystem failed.
-
----
-
-# 60. Firmware Update
-
-V0.1 development shall initially use:
-
-```text
-USB
- ↓
-ESP-IDF
- ↓
-esptool
- ↓
-ESP32-S3
-```
-
-OTA updates are not required for V0.1.
-
-OTA may be added later through the local Wi-Fi interface.
-
----
-
-# 61. Configuration Versioning
-
-Configuration stored in NVS should include a version.
+The System Manager should provide a diagnostics summary.
 
 Example:
 
 ```cpp
-#define CONFIG_VERSION 1
+struct DiagnosticStatus
+{
+    bool rtcOk;
+    bool sdOk;
+    bool ecOk;
+    bool tofOk;
+    bool displayOk;
+    bool wifiOk;
+};
 ```
 
-When configuration structures change, firmware should detect incompatible versions and restore safe defaults.
+The diagnostics screen should present these statuses to the user.
 
 ---
 
-# 62. Application Initialization
-
-Recommended initialization order:
+# 66. Measurement Data Flow
 
 ```text
-1. ESP32 startup
-2. Logging
-3. GPIO
-4. SPI
-5. I2C
-6. UART
-7. Timer/RMT
-8. RTC
-9. Display
-10. SD
-11. RS485
-12. EC sensor
-13. Ultrasonic sensor
-14. Configuration
-15. Application services
-16. Wi-Fi
-17. Web server
-18. FreeRTOS tasks
-19. READY
+START
+ │
+ ▼
+Measurement Manager
+ │
+ ├───────────────► TOF Manager
+ │                    │
+ │                    ▼
+ │                 TOF Data
+ │                    │
+ │                    ▼
+ │                Distance
+ │
+ └───────────────► EC Manager
+                      │
+                      ▼
+                  EC Data
+                      │
+                      ▼
+              Measurement Data
+                      │
+              ┌───────┼────────┐
+              ▼       ▼        ▼
+           Display   SD       Web
 ```
-
-Initialization dependencies must be respected.
 
 ---
 
-# 63. Startup Error Handling
+# 67. Measurement Result Ownership
 
-A subsystem should be classified as either:
+The Measurement Manager owns the completed measurement result.
 
-```text
-Critical
-Optional
-```
+Other modules receive a copy or immutable view.
 
-Critical examples:
+This prevents:
 
-- ESP32 initialization
-- Required GPIO
-- Application services
-
-Optional examples:
-
-- SD card
-- Wi-Fi
-- RTC
-
-The exact classification can be adjusted after prototype testing.
-
-The device should provide useful diagnostics rather than simply failing to boot.
+- Display modifying measurement data.
+- Web API modifying measurement data.
+- Storage modifying measurement data.
 
 ---
 
-# 64. Memory Management
+# 68. Thread Safety
 
-Avoid unnecessary dynamic allocation during active measurement.
-
-Prefer:
-
-- Static buffers.
-- Fixed-size queues.
-- Stack allocation for small temporary objects.
-- Preallocated storage buffers.
-
-Dynamic allocation is acceptable during initialization where practical.
-
----
-
-# 65. Sensor Abstraction
-
-The application shall use interfaces such as:
-
-```text
-IEcSensor
-ITofSensor
-```
-
-This allows:
-
-```text
-                 Measurement Manager
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-          IEcSensor             ITofSensor
-              │                     │
-              ▼                     ▼
-          SEN0707               HC-SR04
-```
-
-Future:
-
-```text
-          ITofSensor
-              │
-              ▼
-       Dedicated TOF Driver
-```
-
-No major application rewrite should be required.
-
----
-
-# 66. File Naming
-
-Recommended source naming:
-
-```text
-snake_case.cpp
-snake_case.h
-```
+Shared objects must have defined ownership.
 
 Examples:
 
-```text
-measurement_manager.cpp
-sen0707.cpp
-storage_manager.cpp
-web_server.cpp
-```
+- Measurement data: Measurement Manager owns it.
+- UI state: UI Manager owns it.
+- Configuration: Configuration Manager owns it.
+- Battery state: Power Manager owns it.
+- Storage state: Storage Manager owns it.
 
-Class names use PascalCase.
-
-Examples:
-
-```text
-MeasurementManager
-StorageManager
-Sen0707
-```
+Cross-module access should use interfaces.
 
 ---
 
-# 67. Constants
+# 69. Timing Requirements
 
-Hardware and application constants shall be centralized.
+The firmware must support microsecond-level timing for HC-SR04 echo measurement.
+
+Use appropriate ESP-IDF timing facilities.
+
+Do not use:
+
+```cpp
+vTaskDelay()
+```
+
+for the actual echo pulse measurement.
+
+Task delays may be used for normal application scheduling.
+
+---
+
+# 70. Configuration Defaults
+
+Initial defaults should include:
+
+```text
+EC Slave ID:
+1
+
+Measurement Timeout:
+Configurable
+
+Minimum Conductivity:
+10 µS/cm
+
+Maximum Conductivity:
+20,000 µS/cm
+
+Speed of Sound:
+Configurable
+
+Minimum Distance:
+Configurable
+
+Maximum Distance:
+Configurable
+
+Wi-Fi SSID:
+EC-TOF-Analyzer
+```
+
+Actual limits should be validated against the customer's sample and measurement requirements.
+
+---
+
+# 71. Security Considerations
+
+V0.1 operates as a local device.
+
+Basic protections should include:
+
+- Do not expose the device to the public internet.
+- Validate web request parameters.
+- Validate configuration values.
+- Limit firmware upload functionality to USB.
+- Avoid unsafe memory operations.
+- Validate file paths.
+- Restrict file access to the application storage directory.
+
+Authentication may be added in a later version if required.
+
+---
+
+# 72. Resource Management
+
+The ESP32-S3 has limited embedded resources.
+
+The firmware should:
+
+- Avoid unnecessary dynamic allocation.
+- Avoid large temporary buffers.
+- Reuse buffers where practical.
+- Limit JSON response sizes.
+- Limit web history queries.
+- Avoid loading entire CSV files into RAM.
+- Stream large files when required.
+- Monitor heap usage during development.
+
+---
+
+# 73. SD File Handling
+
+The software should avoid keeping files open indefinitely.
+
+Recommended pattern:
+
+```text
+Open
+  │
+Write
+  │
+Flush
+  │
+Close
+```
+
+For high-frequency logging, buffering may be introduced after performance testing.
+
+V0.1 measurements are expected to be low frequency, so reliability is more important than maximum write performance.
+
+---
+
+# 74. Web Data Handling
+
+The web interface should display the same application data used by the TFT.
+
+There should be one source of truth.
+
+```text
+                 Application State
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+          TFT UI             Web UI
+```
+
+The web UI must not maintain an independent measurement state.
+
+---
+
+# 75. Calibration Data Storage
+
+Calibration data should be stored in NVS.
 
 Example:
 
 ```cpp
-namespace Config
+struct CalibrationData
 {
-    constexpr uint32_t EC_TIMEOUT_MS = 1000;
-    constexpr uint8_t EC_RETRIES = 3;
+    uint16_t version;
 
-    constexpr uint32_t TOF_TIMEOUT_US = 30000;
+    float ecOffset;
+    float ecScale;
 
-    constexpr uint32_t BUTTON_DEBOUNCE_MS = 50;
-}
+    float tofOffset;
+    float tofScale;
+};
 ```
 
-Avoid scattering magic numbers throughout the codebase.
+The actual EC calibration parameters must follow the SEN0707 capabilities.
 
 ---
 
-# 68. Hardware Configuration
+# 76. Factory Reset
 
-GPIO definitions should be centralized.
+The configuration system should support factory reset.
+
+Factory reset should restore:
+
+- Default configuration.
+- Default calibration state where appropriate.
+- Default Wi-Fi settings.
+
+Measurement history on the SD card should not be deleted automatically unless explicitly requested.
+
+---
+
+# 77. Firmware Version
+
+Firmware versions should follow semantic versioning where practical.
+
+Example:
+
+```text
+0.1.0
+```
+
+The device should expose the firmware version through:
+
+- TFT system screen.
+- Web UI.
+- `/api/device`.
+
+---
+
+# 78. Development Build
+
+Development builds should enable:
+
+- Detailed logging.
+- Diagnostics.
+- Sensor communication logging.
+- Heap monitoring.
+- Error reporting.
+
+Production-like builds can reduce diagnostic output after the prototype is stable.
+
+---
+
+# 79. Unit Testing
+
+Unit-testable components should be isolated from ESP32 hardware where practical.
+
+Candidates:
+
+- Distance calculation.
+- Battery percentage calculation.
+- Measurement validation.
+- Configuration validation.
+- CSV formatting.
+- Calibration calculations.
+- Modbus CRC calculation.
 
 Example:
 
 ```cpp
-namespace Pins
-{
-    constexpr int EC_TX = 17;
-    constexpr int EC_RX = 18;
-    constexpr int RS485_DE = 16;
-
-    constexpr int TOF_TRIG = 4;
-    constexpr int TOF_ECHO = 5;
-
-    constexpr int ENCODER_A = 1;
-    constexpr int ENCODER_B = 2;
-    constexpr int ENCODER_SW = 3;
-
-    constexpr int START = 38;
-    constexpr int BACK = 39;
-}
+float calculateDistanceMm(
+    float tofUs,
+    float speedOfSoundMps
+);
 ```
 
-This makes hardware revisions easier.
+This function can be tested without hardware.
 
 ---
 
-# 69. Unit Conventions
+# 80. Integration Testing
 
-Internal units shall be consistent.
-
-Recommended:
-
-| Measurement | Internal Unit |
-|---|---|
-| Conductivity | µS/cm |
-| TOF | µs |
-| Distance | mm |
-| Temperature if used internally | °C |
-| Battery | V |
-| Time | UTC/local RTC representation |
-
-The UI may convert units for presentation.
-
----
-
-# 70. Conductivity Display
-
-The internal conductivity value should remain in µS/cm.
-
-The UI may automatically display:
-
-```text
-< 1000 µS/cm
-```
-
-as:
-
-```text
-820 µS/cm
-```
-
-and higher values as:
-
-```text
-4.82 mS/cm
-```
-
-The underlying stored value remains:
-
-```text
-4820 µS/cm
-```
-
----
-
-# 71. Measurement ID
-
-Every completed measurement should receive a sequential ID.
-
-Example:
-
-```text
-000001
-000002
-000003
-```
-
-The ID should help identify individual records.
-
-The timestamp remains the primary time reference.
-
----
-
-# 72. System Status
-
-The system status should expose:
-
-```text
-System
-├── MCU
-├── Firmware Version
-├── Uptime
-│
-├── EC Sensor
-│   ├── Connected
-│   └── Status
-│
-├── TOF Sensor
-│   ├── Connected
-│   └── Status
-│
-├── RTC
-│   └── Status
-│
-├── SD
-│   └── Status
-│
-├── Wi-Fi
-│   └── Status
-│
-└── Battery
-    └── Voltage
-```
-
-This information should be available through both TFT and web UI where practical.
-
----
-
-# 73. Firmware Version
-
-The firmware shall expose a version string.
-
-Example:
-
-```text
-EC-TOF Analyzer Firmware
-Version: 0.1.0
-```
-
-The version should be available through:
-
-```text
-TFT
-Web API
-Serial logs
-```
-
----
-
-# 74. Testing Architecture
-
-The software should be testable at multiple levels.
-
-```text
-Unit Tests
-    ↓
-Driver Tests
-    ↓
-Integration Tests
-    ↓
-Hardware Tests
-    ↓
-System Tests
-```
-
----
-
-# 75. Driver-Level Testing
-
-Test independently:
+Hardware integration testing should cover:
 
 ### EC
 
+- RS485 communication.
 - Modbus request.
-- Valid response.
-- CRC error.
-- Timeout.
-- Invalid register.
+- Modbus response.
+- CRC.
+- Conductivity reading.
+- Sensor disconnect.
 
 ### TOF
 
 - Trigger.
 - Echo.
 - Timeout.
-- Minimum distance.
-- Maximum distance.
+- Distance calculation.
+
+### Storage
+
+- SD initialization.
+- File creation.
+- CSV logging.
+- SD removal.
 
 ### RTC
 
-- Read.
-- Write.
-- Backup behavior.
+- Read time.
+- Set time.
+- Timestamp generation.
 
-### SD
+### Battery
 
-- Mount.
-- Create file.
-- Write.
-- Read.
-- Remove/reinsert.
-
----
-
-# 76. Integration Testing
-
-Test:
-
-```text
-EC + ESP32
-TOF + ESP32
-TFT + ESP32
-SD + ESP32
-RTC + ESP32
-Wi-Fi + ESP32
-```
-
-Then:
-
-```text
-EC + TOF
-EC + SD
-TOF + SD
-EC + TOF + TFT
-EC + TOF + SD + RTC
-```
-
-Finally:
-
-```text
-Complete System
-```
+- ADC reading.
+- Voltage calculation.
+- Percentage estimation.
+- Low-battery state.
 
 ---
 
-# 77. Software Acceptance Criteria
+# 81. End-to-End Test
 
-The V0.1 firmware is considered functionally complete when:
-
-- ESP32-S3 boots reliably.
-- TFT initializes reliably.
-- User controls work.
-- SEN0707 returns conductivity readings.
-- RS485 communication handles errors.
-- HC-SR04 produces valid prototype TOF measurements.
-- Distance is calculated.
-- DS3231 provides timestamps.
-- Measurements are stored as CSV.
-- SD errors are reported.
-- Calibration values can be stored.
-- Local Wi-Fi starts.
-- Web dashboard loads.
-- Measurement API works.
-- Web measurement requests work.
-- System status is available.
-- Sensor failures are clearly reported.
-- Firmware survives normal power cycling.
-
----
-
-# 78. V0.1 Software Scope
-
-Included:
+The complete measurement test is:
 
 ```text
-ESP-IDF firmware
-SEN0707 Modbus driver
-MAX3485 RS485 communication
-HC-SR04 driver
-TOF calculation
-Distance calculation
-ST7796 display
-LVGL-based UI if practical
-Rotary encoder
-START button
-BACK button
-DS3231 RTC
-MicroSD CSV logging
-NVS configuration
-EC calibration
-TOF calibration
-Wi-Fi AP
-Local web server
-REST API
-System diagnostics
+Power ON
+   │
+   ▼
+System READY
+   │
+   ▼
+Press START
+   │
+   ▼
+TOF Measurement
+   │
+   ▼
+Distance Calculation
+   │
+   ▼
+EC Measurement
+   │
+   ▼
+Validation
+   │
+   ├── Invalid → Error
+   │
+   ▼
+Display Result
+   │
+   ▼
+Timestamp Result
+   │
+   ▼
+Write CSV
+   │
+   ▼
+Update Web Data
+   │
+   ▼
+READY
 ```
 
 ---
 
-# 79. Explicit Software Exclusions
+# 82. Failure Test
 
-Not included in V0.1:
+The firmware should be tested with:
 
-```text
-Cloud backend
-Mobile application
-User accounts
-Remote internet access
-OTA firmware updates
-AI processing
-Cloud analytics
-Database server
-Advanced authentication
-Production-grade ultrasonic DSP
-Advanced signal processing
-Multi-device synchronization
-```
+- EC sensor disconnected.
+- RS485 cable disconnected.
+- HC-SR04 disconnected.
+- HC-SR04 no echo.
+- SD card removed.
+- RTC disconnected.
+- Low battery.
+- Critical battery.
+- Invalid configuration.
+- Wi-Fi client disconnect.
+- Repeated measurement requests.
 
-These may be considered in future versions.
+The system must remain recoverable.
 
 ---
 
-# 80. Future Software Architecture
+# 83. Software Boundaries
 
-Potential future additions:
+The following rules are mandatory.
 
-```text
-Dedicated TOF processing
-        ↓
-Digital signal processing
-        ↓
-Advanced filtering
-        ↓
-Multi-point calibration
-        ↓
-Measurement profiles
-        ↓
-USB data export
-        ↓
-Advanced analytics
-        ↓
-OTA firmware
-        ↓
-Cloud synchronization
-```
+### UI must not:
 
-These features shall not complicate the V0.1 implementation unless required for the prototype.
+- Read UART directly.
+- Read RS485 directly.
+- Read GPIO sensors directly.
+- Write SD files directly.
 
----
+### Web API must not:
 
-# 81. Recommended Development Sequence
+- Directly access sensors.
+- Directly manipulate GPIO.
+- Directly write NVS.
 
-Software development should proceed in this order:
+### Sensor drivers must not:
 
-```text
-1. ESP-IDF project
-        ↓
-2. GPIO and basic system
-        ↓
-3. TFT driver
-        ↓
-4. Input system
-        ↓
-5. RTC
-        ↓
-6. SD storage
-        ↓
-7. UART/RS485
-        ↓
-8. SEN0707 Modbus driver
-        ↓
-9. EC measurement
-        ↓
-10. HC-SR04 driver
-        ↓
-11. TOF measurement
-        ↓
-12. Measurement Manager
-        ↓
-13. Calibration
-        ↓
-14. Integrated UI
-        ↓
-15. Wi-Fi
-        ↓
-16. Web API
-        ↓
-17. Web UI
-        ↓
-18. Error handling
-        ↓
-19. System testing
-```
+- Update UI.
+- Write SD files.
+- Handle web requests.
+
+### Storage must not:
+
+- Control sensors.
+- Start measurements.
+
+### Measurement Manager must:
+
+- Coordinate the measurement process.
+- Own the measurement state.
 
 ---
 
-# 82. Recommended First Firmware Milestone
+# 84. Dependency Direction
 
-The first firmware milestone should be:
-
-```text
-ESP32-S3
-    +
-TFT
-    +
-Rotary Encoder
-    +
-START / BACK
-```
-
-The target is to establish the basic user interface and hardware foundation before integrating sensors.
-
----
-
-# 83. Recommended Sensor Milestone
-
-The second major milestone:
-
-```text
-ESP32-S3
-      │
-      ├── MAX3485
-      │       │
-      │       └── SEN0707
-      │
-      └── HC-SR04
-```
-
-Target:
-
-```text
-EC Reading
-+
-TOF
-+
-Distance
-```
-
-shown simultaneously on the TFT.
-
----
-
-# 84. Recommended Data Milestone
-
-Third milestone:
-
-```text
-Measurement
-     ↓
-RTC Timestamp
-     ↓
-Measurement Record
-     ↓
-MicroSD
-     ↓
-CSV
-```
-
-Target example:
-
-```text
-2026-10-08T15:32:10,4820,12.482,18.73,VALID
-```
-
----
-
-# 85. Recommended Connectivity Milestone
-
-Fourth milestone:
-
-```text
-ESP32-S3
-    ↓
-Wi-Fi AP
-    ↓
-Web Server
-    ↓
-REST API
-    ↓
-Browser
-```
-
-The web interface should consume the same measurement data used by the TFT.
-
----
-
-# 86. Software Architecture Summary
-
-The final V0.1 software architecture is:
-
-```text
-                         APPLICATION
-                              │
-             ┌────────────────┼────────────────┐
-             │                │                │
-             ▼                ▼                ▼
-       Measurement       Calibration      Configuration
-         Manager           Manager           Manager
-             │
-             ▼
-       Device Services
-             │
-    ┌────────┼────────┬────────┬────────┐
-    ▼        ▼        ▼        ▼        ▼
-    EC      TOF      RTC       SD      Input
-    │        │        │        │        │
-    ▼        ▼        ▼        ▼        ▼
- Modbus   Timing    I2C      SPI      GPIO
-    │        │        │        │        │
-    ▼        ▼        ▼        ▼        ▼
- SEN0707 HC-SR04 DS3231 MicroSD Controls
-
-             ┌────────────────────────────┐
-             │        User Interfaces     │
-             │                            │
-             │       TFT UI   Web UI      │
-             └────────────────────────────┘
-```
-
-The measurement manager is the central application component.
-
-Sensor drivers remain independent.
-
-The UI, storage, and web interface consume validated measurement data rather than communicating directly with sensors.
-
----
-
-# 87. Software Design Baseline
-
-| Area | Decision |
-|---|---|
-| Framework | ESP-IDF |
-| Language | C++ with ESP-IDF APIs |
-| Architecture | Layered / modular |
-| RTOS | FreeRTOS |
-| EC Driver | SEN0707 Modbus RTU |
-| RS485 | MAX3485 |
-| TOF Driver | HC-SR04 |
-| Timing | ESP32-S3 hardware timing peripheral |
-| Display | ST7796 SPI |
-| UI | LVGL where practical |
-| Input | Rotary encoder + buttons |
-| RTC | DS3231 |
-| Storage | MicroSD + CSV |
-| Configuration | NVS |
-| Wi-Fi | Local AP |
-| Web | ESP-IDF HTTP server |
-| API | REST-style HTTP API |
-| Calibration | EC + TOF |
-| Measurement Core | State machine |
-| Logging | Asynchronous where practical |
-| Sensor Abstraction | Interfaces |
-| Cloud | Not included |
-| OTA | Not included |
-| Database | Not included |
-
----
-
-# 88. Implementation Rule
-
-The most important software architecture rule is:
-
-```text
-UI must not control sensors directly.
-
-Sensors must not control UI directly.
-
-Storage must not control measurements directly.
-
-Web API must not bypass application services.
-
-Application services coordinate the system.
-```
-
-The intended dependency direction is:
+Dependencies should flow downward:
 
 ```text
 UI
- ↓
+ │
+ ▼
 Application
- ↓
-Device Services
- ↓
+ │
+ ▼
+Services
+ │
+ ▼
 Drivers
- ↓
+ │
+ ▼
 Hardware
 ```
 
-Never reverse this dependency direction.
+Lower layers must not depend on higher layers.
+
+For example:
+
+```text
+HC-SR04 Driver
+```
+
+must not include:
+
+```text
+DisplayManager
+```
 
 ---
 
-# 89. Final Software Structure
+# 85. Replaceable TOF Architecture
 
-The final V0.1 firmware should conceptually follow:
+The most important future-proofing requirement is the TOF interface.
+
+Current implementation:
 
 ```text
-                  EC-TOF ANALYZER
-                         │
-                         ▼
-                   App Manager
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-    Measurement     Calibration    Configuration
-      Manager         Manager         Manager
-          │
-          ▼
-    ┌─────┴───────────────────────────┐
-    │                                 │
-    ▼                                 ▼
-Device Services                  User Interfaces
-    │                                 │
- ┌──┼───────┬────────┐          ┌─────┴─────┐
- ▼  ▼       ▼        ▼          ▼           ▼
-EC TOF     RTC       SD        TFT         Web
-│   │       │        │
-▼   ▼       ▼        ▼
-RS485 RMT   I2C      SPI
-│   │
-▼   ▼
-EC  HC-SR04
+ITofSensor
+    │
+    └── HcSr04
 ```
 
-This architecture provides a clean separation between measurement hardware, application logic, storage, and user interfaces.
+Future implementation:
 
-It is intentionally structured so the V0.1 prototype can evolve into a production system without requiring a complete firmware rewrite.
+```text
+ITofSensor
+    │
+    ├── HcSr04
+    │
+    ├── LaboratoryUltrasonic
+    │
+    └── CustomTofReceiver
+```
+
+The Measurement Manager should not require modification when the underlying TOF hardware changes, except where the measurement model itself changes.
+
+---
+
+# 86. Replaceable EC Architecture
+
+The EC subsystem follows the same concept.
+
+```text
+IEcSensor
+    │
+    └── Sen0707
+```
+
+Future:
+
+```text
+IEcSensor
+    │
+    ├── Sen0707
+    └── OtherEcSensor
+```
+
+This allows a different EC sensor to be tested without rewriting the measurement application.
+
+---
+
+# 87. Future Liquid TOF Support
+
+The V0.1 firmware must clearly separate:
+
+1. Raw TOF acquisition.
+2. Distance calculation.
+3. Measurement model.
+
+The HC-SR04 air formula is:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+A future liquid/acoustic implementation may require:
+
+- Different sound velocity.
+- Different acoustic path.
+- Transducer delay compensation.
+- Signal detection.
+- Gain control.
+- Cross-correlation.
+- Temperature compensation.
+- Sample cell geometry.
+
+These must not be hardcoded into the V0.1 HC-SR04 driver.
+
+---
+
+# 88. Application State
+
+The application should maintain a central runtime state.
+
+Example:
+
+```cpp
+struct ApplicationState
+{
+    SystemStatus systemStatus;
+
+    MeasurementStatus measurementStatus;
+
+    MeasurementData currentMeasurement;
+
+    PowerStatus powerStatus;
+
+    DiagnosticStatus diagnostics;
+};
+```
+
+This state feeds:
+
+- TFT UI.
+- Web API.
+- System diagnostics.
+
+---
+
+# 89. Measurement Request
+
+A measurement request can be represented as:
+
+```cpp
+struct MeasurementRequest
+{
+    uint32_t requestId;
+    bool requested;
+};
+```
+
+The request is placed into the measurement system rather than directly calling the measurement function from the UI.
+
+---
+
+# 90. Measurement Result
+
+```cpp
+struct MeasurementResult
+{
+    bool success;
+
+    MeasurementData data;
+
+    MeasurementStatus status;
+
+    ErrorCode error;
+};
+```
+
+An error code system should be defined centrally.
+
+---
+
+# 91. Error Codes
+
+Example:
+
+```cpp
+enum class ErrorCode
+{
+    NONE,
+
+    EC_TIMEOUT,
+    EC_CRC_ERROR,
+    EC_INVALID_RESPONSE,
+    EC_DISCONNECTED,
+
+    TOF_TIMEOUT,
+    TOF_INVALID,
+    TOF_DISCONNECTED,
+
+    RTC_ERROR,
+
+    SD_NOT_FOUND,
+    SD_WRITE_ERROR,
+
+    BATTERY_LOW,
+    BATTERY_CRITICAL,
+
+    CONFIG_INVALID
+};
+```
+
+The final list can expand during implementation.
+
+---
+
+# 92. Logging and Measurement Separation
+
+Two different logging systems should be maintained.
+
+### Measurement log
+
+CSV data intended for users and analysis.
+
+### System log
+
+Diagnostic information intended for development and troubleshooting.
+
+They should not be mixed.
+
+---
+
+# 93. Memory Management
+
+Avoid unnecessary heap allocation during measurements.
+
+Preferred approach:
+
+```text
+Initialize
+   │
+   ▼
+Allocate required buffers
+   │
+   ▼
+Reuse buffers
+   │
+   ▼
+Run measurements
+```
+
+Do not repeatedly allocate and free memory inside high-frequency measurement loops.
+
+---
+
+# 94. Watchdog Recovery
+
+If a recoverable task fails:
+
+```text
+Task Failure
+    │
+    ▼
+Error Log
+    │
+    ▼
+Attempt Recovery
+    │
+    ├── Success → Continue
+    │
+    └── Failure → System Error
+```
+
+A full device reboot should only be used when required.
+
+---
+
+# 95. Startup Diagnostics
+
+At startup, the firmware should check:
+
+```text
+ESP32-S3             OK
+Configuration        OK
+RTC                  OK
+SD                   OK
+Display              OK
+EC Interface         OK
+TOF Interface        OK
+Battery ADC          OK
+Wi-Fi                OK
+```
+
+The result should be available through the System Status screen.
+
+---
+
+# 96. Software Acceptance Criteria
+
+The software is ready for V0.1 validation when:
+
+- ESP32-S3 boots reliably.
+- Configuration loads correctly.
+- SEN0707 can be read.
+- RS485 errors are detected.
+- HC-SR04 TOF can be measured.
+- Echo timeout is handled.
+- Distance is calculated.
+- Measurements are validated.
+- Results appear on the TFT.
+- Physical controls operate correctly.
+- RTC timestamps are correct.
+- Measurements are logged to SD.
+- SD failures do not crash the application.
+- Battery voltage is displayed.
+- Battery percentage is displayed.
+- Low battery is detected.
+- Wi-Fi AP starts correctly.
+- Web dashboard displays measurement data.
+- REST API works.
+- Configuration can be changed.
+- Calibration data persists.
+- Sensor failures are reported.
+- Measurement sequence returns to READY after completion or failure.
+
+---
+
+# 97. V0.1 Software Exclusions
+
+The following are excluded from V0.1:
+
+- Battery current measurement.
+- Battery power measurement.
+- INA226 support.
+- Dedicated fuel gauge.
+- Cloud backend.
+- Remote internet access.
+- Mobile application.
+- Web OTA.
+- Production-grade ultrasonic signal processing.
+- Advanced acoustic signal analysis.
+- Automatic sample identification.
+- Advanced analytics.
+- Multi-device synchronization.
+
+---
+
+# 98. Final Software Architecture
+
+```text
+                         ┌─────────────────────────┐
+                         │       TFT / LVGL         │
+                         │       Web Browser        │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │    Application Layer    │
+                         │                         │
+                         │ Measurement Manager     │
+                         │ Configuration Manager   │
+                         │ Calibration Manager     │
+                         │ System Manager          │
+                         │ Power Manager           │
+                         └────────────┬────────────┘
+                                      │
+                 ┌────────────────────┼────────────────────┐
+                 │                    │                    │
+                 ▼                    ▼                    ▼
+          ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+          │ EC Manager  │      │ TOF Manager │      │  Storage    │
+          │             │      │             │      │  Manager    │
+          └──────┬──────┘      └──────┬──────┘      └──────┬──────┘
+                 │                    │                    │
+                 ▼                    ▼                    ▼
+          ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+          │ SEN0707     │      │ HC-SR04     │      │ MicroSD     │
+          │ Modbus      │      │ Driver      │      │ CSV         │
+          └──────┬──────┘      └─────────────┘      └─────────────┘
+                 │
+                 ▼
+             MAX3485
+                 │
+                 ▼
+              RS485
+
+                 ┌──────────────────────────┐
+                 │        Services          │
+                 │                          │
+                 │ RTC │ Wi-Fi │ Web API    │
+                 └──────────────────────────┘
+
+                 ┌──────────────────────────┐
+                 │       Hardware Drivers   │
+                 │                          │
+                 │ SPI │ I2C │ GPIO │ ADC   │
+                 │ UART │ RS485 │ TFT       │
+                 └──────────────────────────┘
+```
+
+---
+
+# 99. Final V0.1 Software Boundary
+
+The firmware architecture is intentionally designed around the following principle:
+
+```text
+                    APPLICATION
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+       EC Sensor                    TOF Sensor
+          │                             │
+      SEN0707                       HC-SR04
+          │                             │
+       RS485                         GPIO
+```
+
+The application knows what measurement it needs.
+
+It does not need to know the low-level implementation details of the sensor.
+
+This allows the V0.1 prototype to validate the complete EC-TOF workflow while keeping the software architecture ready for a future laboratory-grade ultrasonic measurement system.

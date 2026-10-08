@@ -1,260 +1,520 @@
 # EC-TOF Analyzer V0.1
 ## Implementation Plan
 
-**Document Version:** 1.0  
-**Project Version:** V0.1  
-**Platform:** ESP32-S3  
-**Framework:** ESP-IDF  
-**Language:** C++  
-**Status:** Implementation Baseline
+**Version:** 0.1  
+**Status:** Prototype  
+**Target Platform:** ESP32-S3  
+**Firmware:** ESP-IDF  
+**Last Updated:** October 2026
 
 ---
 
-## 1. Purpose
+# 1. Purpose
 
-This document defines the implementation sequence for the EC-TOF Analyzer V0.1 prototype.
+This document defines the implementation plan for the EC-TOF Analyzer V0.1 prototype.
 
-The goal is to build the system incrementally.
+The implementation will follow an incremental approach.
 
-Each major hardware and software component must be tested before integration.
+Each phase should produce a testable result before moving to the next phase.
 
-The implementation must prioritize:
+The primary objective is to prove the complete measurement workflow:
 
-- Working measurement functions
-- Modular firmware
-- Replaceable sensor drivers
-- Reliable data logging
-- Local web access
-- Battery-powered operation
-- Simple physical controls
-- Clear error handling
-- Easy future hardware replacement
-
-V0.1 is a prototype.
-
-The implementation must not introduce production-level complexity unless it is required for the prototype.
+```text
+EC Measurement
+      +
+Ultrasonic TOF
+      +
+Distance Calculation
+      +
+Timestamp
+      +
+Data Logging
+      +
+Local Display
+      +
+Physical Controls
+      +
+Local Wi-Fi
+      +
+Simple Battery Indicator
+```
 
 ---
 
-# 2. Development Strategy
+# 2. Implementation Strategy
 
-Development follows a bottom-up approach.
+The project shall be developed in layers.
+
+Recommended order:
 
 ```text
 Hardware Bring-Up
-       ↓
-Basic Drivers
-       ↓
-Individual Sensor Drivers
-       ↓
-Measurement Functions
-       ↓
-Measurement Manager
-       ↓
-Display and Controls
-       ↓
-Data Logging
-       ↓
+       │
+       ▼
+ESP32-S3 Base
+       │
+       ▼
+Drivers
+       │
+       ▼
+Individual Sensors
+       │
+       ▼
+Measurement Logic
+       │
+       ▼
+Display + Controls
+       │
+       ▼
+Storage + RTC
+       │
+       ▼
+Battery Indicator
+       │
+       ▼
+Wi-Fi + Web UI
+       │
+       ▼
 Calibration
-       ↓
-Wi-Fi / Web Interface
-       ↓
-System Integration
-       ↓
-Validation
+       │
+       ▼
+Integration Testing
+       │
+       ▼
+Prototype Validation
 ```
 
-Each phase should produce a testable result.
-
-Do not integrate multiple untested subsystems at the same time.
+The system shall not attempt to implement all features simultaneously.
 
 ---
 
-# 3. Implementation Phases
+# 3. Phase 0 - Project Preparation
 
-## Phase 0: Project Setup
+## Objectives
 
-### Objective
+Set up the development environment.
 
-Create the initial ESP-IDF project structure.
+## Tasks
 
-### Tasks
-
-- Create ESP-IDF project.
+- Install ESP-IDF.
+- Configure VS Code.
+- Configure ESP-IDF extension.
+- Create project repository.
 - Configure ESP32-S3 target.
-- Configure C++ support.
-- Create project directory structure.
-- Configure Git repository.
-- Add `.gitignore`.
-- Create initial `README.md`.
-- Configure build and flash commands.
-- Verify serial logging.
-- Verify firmware flashing.
+- Configure build system.
+- Configure serial monitor.
+- Create initial project structure.
+- Create Git repository.
+- Establish coding conventions.
 
-### Initial structure
+## Expected Result
+
+The ESP32-S3 shall build and flash a basic application.
+
+Example:
 
 ```text
-ec-tof-analyzer/
-├── CMakeLists.txt
-├── sdkconfig
-├── sdkconfig.defaults
-├── README.md
-│
-├── main/
-│   ├── main.cpp
-│   │
-│   ├── app/
-│   ├── common/
-│   ├── sensors/
-│   │   ├── ec/
-│   │   └── tof/
-│   │
-│   ├── drivers/
-│   │   ├── gpio/
-│   │   ├── i2c/
-│   │   ├── spi/
-│   │   ├── uart/
-│   │   ├── rs485/
-│   │   └── timer/
-│   │
-│   ├── display/
-│   ├── input/
-│   ├── rtc/
-│   ├── storage/
-│   ├── web/
-│   ├── power/
-│   └── system/
-│
-└── components/
+EC-TOF Analyzer V0.1
+Booting...
+ESP32-S3 Ready
 ```
-
-### Exit Criteria
-
-- Firmware builds successfully.
-- ESP32-S3 flashes successfully.
-- Serial console works.
-- Basic application startup message appears.
 
 ---
 
-# 4. Phase 1: ESP32-S3 Hardware Bring-Up
+# 4. Phase 1 - ESP32-S3 Hardware Bring-Up
 
-## Objective
+## Objectives
 
-Verify the main controller and basic GPIO functionality.
+Verify the controller board.
 
-### Tasks
+## Tasks
 
-- Configure board.
-- Verify 3.3 V logic.
-- Test GPIO output.
-- Test GPIO input.
-- Test button input.
-- Test system reset.
-- Test serial communication.
-- Verify available SPI pins.
-- Verify available UART pins.
-- Verify I2C pins.
-- Verify interrupt-capable GPIOs.
+- Verify power.
+- Flash firmware.
+- Verify serial output.
+- Verify reset behavior.
+- Verify GPIO operation.
+- Verify basic timer operation.
+- Verify Wi-Fi hardware availability.
+- Verify SPI peripheral.
+- Verify I2C peripheral.
+- Verify UART peripheral.
+- Verify ADC peripheral.
 
-### Basic test firmware
+## Expected Result
+
+All required ESP32-S3 peripherals can be initialized successfully.
+
+---
+
+# 5. Phase 2 - Project Structure
+
+Create the initial software architecture.
+
+```text
+main/
+    main.cpp
+
+    app/
+    sensors/
+        ec/
+        tof/
+
+    drivers/
+        rs485/
+        uart/
+        spi/
+        i2c/
+        gpio/
+        adc/
+        timer/
+
+    display/
+    input/
+    storage/
+    rtc/
+    web/
+    power/
+    system/
+    common/
+```
+
+## Tasks
+
+- Create modules.
+- Create interfaces.
+- Create common data structures.
+- Create logging utilities.
+- Create error definitions.
+- Create configuration structures.
+
+## Expected Result
+
+The project builds with the complete basic architecture.
+
+---
+
+# 6. Phase 3 - GPIO Driver
+
+## Objectives
+
+Create the GPIO abstraction.
+
+## Tasks
 
 Implement:
 
-```text
-System Start
-    ↓
-GPIO Initialization
-    ↓
-Button Test
-    ↓
-Output Test
-    ↓
-Serial Logging
-```
+- Digital output
+- Digital input
+- Pull-up configuration
+- Pull-down configuration
+- Interrupt support where required
 
-### Exit Criteria
+## Expected Result
 
-- All required GPIOs are identified.
-- No pin conflicts exist.
-- Buttons can be detected.
-- Outputs respond correctly.
+Application code can use GPIO without directly accessing ESP-IDF GPIO implementation details.
 
 ---
 
-# 5. Phase 2: Display Implementation
+# 7. Phase 4 - UART Driver
 
-## Objective
+## Objectives
 
-Bring up the 4" 480x320 ST7796 SPI display.
+Create the UART abstraction required by the RS485 interface.
 
-### Tasks
+## Tasks
 
-- Implement SPI driver configuration.
+Implement:
+
+- UART initialization
+- Baud rate configuration
+- TX
+- RX
+- Timeout
+- Buffer handling
+- UART error handling
+
+## Expected Result
+
+The ESP32-S3 can communicate through a UART peripheral.
+
+---
+
+# 8. Phase 5 - RS485 Driver
+
+## Objectives
+
+Implement RS485 communication.
+
+Hardware:
+
+```text
+ESP32-S3 UART
+      │
+      ▼
+MAX3485
+      │
+      ▼
+RS485
+```
+
+## Tasks
+
+Implement:
+
+- RS485 initialization
+- Driver enable control
+- Transmit
+- Receive
+- Receive timeout
+- Direction control
+- Frame handling
+
+## Expected Result
+
+Reliable RS485 communication is available to the application.
+
+---
+
+# 9. Phase 6 - SEN0707 Driver
+
+## Objectives
+
+Communicate with the conductivity sensor.
+
+## Tasks
+
+Implement:
+
+- SEN0707 initialization
+- Modbus RTU frame creation
+- Modbus request transmission
+- Response reception
+- CRC validation
+- Register decoding
+- Conductivity conversion
+- Communication timeout
+- Sensor error detection
+
+## Expected Result
+
+The firmware can read conductivity from the SEN0707.
+
+Example:
+
+```text
+EC: 4820 µS/cm
+Status: VALID
+```
+
+---
+
+# 10. Phase 7 - EC Sensor Service
+
+Create the EC sensor abstraction.
+
+Example:
+
+```cpp
+class IEcSensor
+{
+public:
+    virtual bool begin() = 0;
+    virtual bool read(float& conductivity) = 0;
+    virtual bool calibrate() = 0;
+    virtual bool isConnected() = 0;
+
+    virtual ~IEcSensor() = default;
+};
+```
+
+## Tasks
+
+- Create `IEcSensor`.
+- Implement `Sen0707Driver`.
+- Create EC Manager.
+- Add error handling.
+- Add measurement validation.
+
+## Expected Result
+
+The application can request an EC measurement without knowing the underlying Modbus implementation.
+
+---
+
+# 11. Phase 8 - Ultrasonic GPIO Driver
+
+## Objectives
+
+Prepare the hardware interface for the HC-SR04.
+
+## Tasks
+
+Implement:
+
+- Trigger output
+- Echo input
+- Timer capture
+- Timeout
+- Echo validation
+
+The ECHO signal shall pass through an appropriate voltage divider or level shifter.
+
+## Expected Result
+
+The ESP32-S3 can safely trigger the HC-SR04 and measure the echo pulse.
+
+---
+
+# 12. Phase 9 - TOF Sensor Driver
+
+## Objectives
+
+Implement the HC-SR04 prototype driver.
+
+## Tasks
+
+Implement:
+
+- Trigger pulse
+- Echo timing
+- TOF calculation
+- Timeout handling
+- Invalid measurement detection
+
+## Expected Result
+
+The firmware can produce repeatable TOF values.
+
+Example:
+
+```text
+TOF: 12.482 us
+```
+
+---
+
+# 13. Phase 10 - TOF Sensor Abstraction
+
+Create:
+
+```cpp
+class ITofSensor
+{
+public:
+    virtual bool begin() = 0;
+
+    virtual bool measureTof(
+        float& tofUs
+    ) = 0;
+
+    virtual bool calculateDistance(
+        float tofUs,
+        float& distanceMm
+    ) = 0;
+
+    virtual ~ITofSensor() = default;
+};
+```
+
+## Expected Result
+
+The measurement system is independent of the HC-SR04 implementation.
+
+---
+
+# 14. Phase 11 - TOF Distance Calculation
+
+For the V0.1 air prototype:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+## Tasks
+
+- Implement distance calculation.
+- Define units.
+- Define configurable speed of sound.
+- Add validation limits.
+- Add invalid result handling.
+
+## Expected Result
+
+The system produces a calculated distance.
+
+---
+
+# 15. Phase 12 - TFT Display Driver
+
+## Objectives
+
+Bring up the 4-inch ST7796 display.
+
+## Tasks
+
+- Configure SPI.
 - Initialize ST7796.
-- Configure display resolution.
-- Test screen initialization.
+- Test screen orientation.
+- Test screen clearing.
 - Test text rendering.
 - Test basic graphics.
 - Test screen refresh.
-- Implement display abstraction.
-- Create initial UI layout.
 
-### Initial screen
+## Expected Result
+
+The display shows:
 
 ```text
-+------------------------------------------+
-|             EC-TOF ANALYZER              |
-+------------------------------------------+
-|                                          |
-| Conductivity                             |
-| 4.82 mS/cm                               |
-|                                          |
-| Ultrasonic TOF                           |
-| 12.482 us                                |
-|                                          |
-| Distance                                 |
-| 18.73 mm                                 |
-|                                          |
-| Status: READY                            |
-+------------------------------------------+
+EC-TOF ANALYZER
+System Ready
 ```
-
-### Exit Criteria
-
-- Display initializes reliably.
-- Text is readable.
-- Screen updates without corruption.
-- Display driver is isolated from application logic.
 
 ---
 
-# 6. Phase 3: Physical Input
+# 16. Phase 13 - Display Manager
 
-## Objective
+Create the application-level display system.
 
-Implement the rotary encoder and physical buttons.
+## Screens
 
-### Inputs
+Implement:
 
-- Rotary encoder clockwise
-- Rotary encoder counter-clockwise
-- Rotary encoder push
-- START button
-- BACK button
+1. Main
+2. Measurement
+3. Calibration
+4. Configuration
+5. System Status
 
-### Tasks
+The display manager shall receive application data instead of directly accessing sensors.
 
-- Configure GPIO inputs.
-- Implement debouncing.
-- Detect encoder rotation.
-- Detect encoder button.
-- Detect START.
-- Detect BACK.
-- Create `InputManager`.
-- Generate high-level input events.
+## Expected Result
 
-### Example events
+The application can switch between UI screens.
+
+---
+
+# 17. Phase 14 - Physical Input
+
+## Hardware
+
+- Rotary encoder
+- Encoder push button
+- START
+- BACK
+
+## Tasks
+
+Implement:
+
+- GPIO input
+- Debouncing
+- Encoder direction detection
+- Encoder press
+- START event
+- BACK event
+
+Create logical events:
 
 ```text
 ENCODER_CW
@@ -264,35 +524,88 @@ START_PRESS
 BACK_PRESS
 ```
 
-### Exit Criteria
+## Expected Result
 
-- All controls respond correctly.
-- No significant false triggering.
-- UI can consume high-level input events.
+The application can navigate menus and start measurements.
 
 ---
 
-# 7. Phase 4: RTC Implementation
+# 18. Phase 15 - Measurement Manager
 
-## Objective
+## Objectives
 
-Implement the DS3231 RTC.
-
-### Tasks
-
-- Implement I2C driver.
-- Initialize DS3231.
-- Read current date/time.
-- Set date/time.
-- Validate RTC data.
-- Implement `RtcManager`.
-- Add timestamp formatting.
-
-### Required timestamp format
+Implement the complete measurement state machine.
 
 ```text
-YYYY-MM-DDTHH:MM:SS
+IDLE
+  │
+  ▼
+START
+  │
+  ▼
+TOF_TRIGGER
+  │
+  ▼
+TOF_WAIT
+  │
+  ▼
+TOF_PROCESS
+  │
+  ▼
+EC_READ
+  │
+  ▼
+VALIDATE
+  │
+  ▼
+DISPLAY
+  │
+  ▼
+LOG
+  │
+  ▼
+READY
 ```
+
+## Tasks
+
+- Create measurement state enum.
+- Implement state transitions.
+- Implement TOF execution.
+- Implement EC execution.
+- Implement validation.
+- Create measurement record.
+- Update UI.
+- Trigger storage.
+
+## Expected Result
+
+Pressing START performs a complete measurement.
+
+---
+
+# 19. Phase 16 - RTC Integration
+
+## Hardware
+
+DS3231.
+
+## Interface
+
+I2C.
+
+## Tasks
+
+- Implement I2C driver.
+- Implement DS3231 driver.
+- Read date/time.
+- Set date/time.
+- Validate RTC.
+- Create timestamp service.
+
+## Expected Result
+
+The system can produce timestamps.
 
 Example:
 
@@ -300,45 +613,35 @@ Example:
 2026-10-08T15:32:10
 ```
 
-### Exit Criteria
+---
 
-- RTC can be read.
-- RTC can be configured.
-- Timestamp is stable.
-- RTC errors are detected.
+# 20. Phase 17 - MicroSD Integration
+
+## Hardware
+
+- MicroSD module
+- SPI interface
+
+## Tasks
+
+- Initialize SPI.
+- Mount filesystem.
+- Detect SD card.
+- Create directories.
+- Create CSV files.
+- Append records.
+- Handle write failures.
+- Unmount safely.
+
+## Expected Result
+
+The system can store measurements.
 
 ---
 
-# 8. Phase 5: MicroSD Storage
+# 21. Phase 18 - Measurement Logging
 
-## Objective
-
-Implement reliable measurement storage.
-
-### Tasks
-
-- Configure SD card over SPI.
-- Mount filesystem.
-- Detect card insertion/startup availability.
-- Create directory structure.
-- Create CSV files.
-- Append measurements.
-- Read stored measurements.
-- Handle SD errors.
-
-### Directory structure
-
-```text
-/ECTOF/
-├── config/
-├── data/
-│   └── YYYY/
-│       └── MM/
-│           └── DD.csv
-└── logs/
-```
-
-### CSV format
+Implement the final measurement record:
 
 ```text
 timestamp,conductivity,tof_us,distance_mm,status
@@ -350,510 +653,230 @@ Example:
 2026-10-08T15:32:10,4820,12.482,18.73,VALID
 ```
 
-### Exit Criteria
+## Tasks
 
-- SD card mounts successfully.
-- Files can be created.
-- Measurements can be appended.
-- Files can be read after reboot.
-- SD failure does not crash the system.
+- Generate CSV row.
+- Add timestamp.
+- Write record.
+- Verify write.
+- Handle SD errors.
 
----
+## Expected Result
 
-# 9. Phase 6: UART and RS485
-
-## Objective
-
-Create the communication layer required by the SEN0707.
-
-### Architecture
-
-```text
-ESP32-S3 UART
-      |
-      v
-MAX3485
-      |
-      v
-RS485
-      |
-      v
-SEN0707
-```
-
-### Tasks
-
-- Configure UART.
-- Configure RS485 direction control.
-- Implement transmit.
-- Implement receive.
-- Implement timeout.
-- Implement CRC handling.
-- Implement frame validation.
-- Implement communication error detection.
-
-### Required errors
-
-```text
-TIMEOUT
-CRC_ERROR
-INVALID_FRAME
-UART_ERROR
-SENSOR_DISCONNECTED
-```
-
-### Exit Criteria
-
-- ESP32-S3 communicates with MAX3485.
-- Modbus frames can be transmitted.
-- Responses can be received.
-- Invalid responses are detected.
+Every valid measurement can be saved to the SD card.
 
 ---
 
-# 10. Phase 7: SEN0707 EC Sensor
+# 22. Phase 19 - Battery Hardware
 
-## Objective
+## Hardware
 
-Implement the conductivity sensor driver.
+- 3.7 V rechargeable battery
+- USB-C charger
+- Battery protection
+- Voltage divider
+- Appropriate power regulators
 
-### Tasks
-
-- Create `IEcSensor` interface.
-- Create `Sen0707Driver`.
-- Implement Modbus communication.
-- Read conductivity.
-- Validate returned data.
-- Handle sensor timeout.
-- Handle invalid readings.
-- Convert units where required.
-
-### Internal flow
+Power architecture:
 
 ```text
-MeasurementManager
-       ↓
-IEcSensor
-       ↓
-Sen0707Driver
-       ↓
-Modbus
-       ↓
-RS485
-       ↓
-SEN0707
+USB-C
+   │
+   ▼
+Charger
+   │
+   ▼
+Battery
+   │
+   ▼
+Power Distribution
+   ├── 12 V ──► SEN0707
+   ├── 5 V ───► TFT / HC-SR04
+   └── 3.3 V ─► ESP32-S3 / Logic
 ```
 
-### Example API
+## Expected Result
 
-```cpp
-bool begin();
-
-bool readConductivity(float& conductivity);
-
-bool isConnected();
-
-EcSensorStatus getStatus();
-```
-
-### Exit Criteria
-
-- Conductivity can be read reliably.
-- Sensor communication errors are handled.
-- Sensor driver is independent from the UI.
+The complete system can operate from the battery.
 
 ---
 
-# 11. Phase 8: EC Measurement Validation
+# 23. Phase 20 - Battery Voltage Measurement
 
-## Objective
+## Objectives
 
-Verify conductivity measurements before integrating them into the full measurement cycle.
+Measure battery voltage using the ESP32-S3 ADC.
 
-### Tests
+Architecture:
 
-- Low conductivity sample.
-- Medium conductivity sample.
-- High conductivity sample.
-- Repeated measurements.
-- Sensor disconnect.
-- Communication timeout.
-- Invalid response.
-- Calibration solution.
+```text
+Battery
+   │
+   ▼
+Voltage Divider
+   │
+   ▼
+ESP32 ADC
+   │
+   ▼
+Battery Voltage
+```
 
-### Required behavior
+## Tasks
 
-A failed sensor reading must not generate a `VALID` measurement.
+- Configure ADC.
+- Implement voltage divider calculation.
+- Calibrate ADC if required.
+- Add voltage filtering.
+- Validate voltage range.
 
-### Exit Criteria
+## Expected Result
 
-- Conductivity readings are stable enough for prototype use.
-- Error states are correctly reported.
-- Sensor data is available through the application layer.
+The system can display the measured battery voltage.
+
+Example:
+
+```text
+Battery: 3.82 V
+```
 
 ---
 
-# 12. Phase 9: HC-SR04 TOF Driver
+# 24. Phase 21 - Battery Percentage and Indicator
 
-## Objective
+## Objectives
 
-Implement the initial ultrasonic timing subsystem.
+Create a simple battery indicator.
 
-### Important Scope
+## Tasks
 
-The HC-SR04 is used only for V0.1 feasibility and prototype development.
+- Convert battery voltage to estimated percentage.
+- Implement lookup table.
+- Implement battery state.
+- Add low battery warning.
+- Add battery icon to TFT.
+- Add battery information to web API.
 
-It must not be treated as the final liquid or laboratory acoustic TOF sensor.
-
-The TOF software must remain hardware-independent.
-
-### Tasks
-
-- Configure TRIG GPIO.
-- Configure ECHO GPIO.
-- Implement ECHO level shifting.
-- Implement microsecond timing.
-- Implement trigger pulse.
-- Measure ECHO duration.
-- Implement timeout.
-- Reject invalid measurements.
-
-### Measurement sequence
+Example:
 
 ```text
-TRIGGER
-   ↓
-WAIT FOR ECHO HIGH
-   ↓
-START TIMER
-   ↓
-WAIT FOR ECHO LOW
-   ↓
-STOP TIMER
-   ↓
-CALCULATE TOF
+🔋 78%
 ```
 
-### Required timeout
+Example status:
 
-The driver must never wait indefinitely for ECHO.
+```text
+Battery: 3.82 V
+Level:   50%
+Status:  NORMAL
+```
 
-### Exit Criteria
+The percentage is an estimate.
 
-- Trigger works.
-- Echo timing works.
-- Timeout works.
-- Repeated measurements are possible.
-- Driver returns a structured measurement result.
+No battery current measurement shall be implemented.
+
+No battery power calculation shall be implemented.
+
+No dedicated fuel gauge is required for V0.1.
+
+## Expected Result
+
+The user can quickly determine the approximate battery level.
 
 ---
 
-# 13. Phase 10: TOF Processing
+# 25. Phase 22 - Configuration Manager
 
-## Objective
+## Objectives
 
-Convert the measured ultrasonic timing into distance for the prototype.
+Implement persistent configuration using ESP-IDF NVS.
 
-### V0.1 relationship
+## Configuration
 
-For air-based HC-SR04 testing:
+Potential settings:
 
-```text
-Distance = TOF × Speed of Sound / 2
-```
+- Device settings
+- Sensor settings
+- TOF settings
+- Calibration values
+- Display settings
+- Logging settings
 
-The factor of two accounts for the outbound and return path.
+## Tasks
 
-### Important Limitation
+- Create configuration structure.
+- Implement defaults.
+- Implement NVS storage.
+- Implement load.
+- Implement save.
+- Implement validation.
+- Add configuration version.
 
-The speed-of-sound assumption is environment-dependent.
+## Expected Result
 
-The V0.1 implementation must not hard-code this calculation as the final method for the future liquid/acoustic TOF system.
-
-The TOF processing layer must allow the future sensor implementation to provide its own conversion.
-
-### Exit Criteria
-
-- TOF values are measured.
-- Distance calculation works for controlled air testing.
-- Sensor timeout is handled.
-- TOF abstraction remains replaceable.
-
----
-
-# 14. Phase 11: Measurement Manager
-
-## Objective
-
-Integrate EC and TOF measurements into one controlled measurement cycle.
-
-### State machine
-
-```text
-IDLE
-  ↓
-START
-  ↓
-TOF_TRIGGER
-  ↓
-TOF_WAIT
-  ↓
-TOF_PROCESS
-  ↓
-EC_READ
-  ↓
-VALIDATE
-  ↓
-DISPLAY
-  ↓
-LOG
-  ↓
-READY
-```
-
-### Error path
-
-```text
-Any measurement failure
-        ↓
-     ERROR
-        ↓
-   Display Error
-        ↓
-      READY
-```
-
-### Measurement result
-
-```cpp
-struct MeasurementResult
-{
-    uint64_t id;
-    Timestamp timestamp;
-
-    float conductivity;
-    float tof_us;
-    float distance_mm;
-
-    MeasurementStatus status;
-};
-```
-
-### Exit Criteria
-
-- START initiates a measurement.
-- TOF is measured.
-- EC is measured.
-- Results are validated.
-- Results are displayed.
-- Valid results are logged.
+Configuration survives a reboot.
 
 ---
 
-# 15. Phase 12: Calibration
+# 26. Phase 23 - Calibration
 
-## Objective
+## EC Calibration
 
-Implement calibration management.
+Implement the calibration workflow for the SEN0707.
 
-## 15.1 EC Calibration
+Tasks:
 
-Use the manufacturer's recommended calibration procedure and supplied calibration solution.
+- Calibration screen.
+- Calibration value input.
+- Sensor reading.
+- Calibration validation.
+- Save calibration parameters.
 
-### Tasks
+## TOF Calibration
 
-- Create EC calibration screen.
-- Read current sensor value.
-- Allow calibration value entry.
-- Calculate/store calibration parameters as required.
-- Save calibration configuration to NVS.
-- Display calibration status.
+Tasks:
 
-### Validation
+- Reference distance entry.
+- Measurement collection.
+- Correction calculation.
+- Save calibration parameters.
 
-Compare sensor reading against the known calibration solution.
+## Expected Result
 
----
-
-## 15.2 TOF Calibration
-
-Use a known physical distance.
-
-### Procedure
-
-```text
-Known Distance
-      ↓
-Measure TOF
-      ↓
-Calculate Calibration Factor
-      ↓
-Store Calibration
-      ↓
-Validate
-```
-
-### Exit Criteria
-
-- Calibration data survives reboot.
-- Calibration can be changed.
-- Invalid calibration values are rejected.
+The user can perform basic prototype calibration without modifying firmware code.
 
 ---
 
-# 16. Phase 13: Configuration Manager
+# 27. Phase 24 - Wi-Fi Access Point
 
-## Objective
+## Objectives
 
-Store persistent device configuration.
+Enable local wireless access.
 
-### Configuration examples
-
-```text
-Device Name
-Sensor Address
-Measurement Timeout
-TOF Calibration
-EC Calibration
-Display Settings
-Wi-Fi Settings
-Logging Settings
-```
-
-### Storage
-
-Use ESP-IDF NVS.
-
-### Requirements
-
-- Configuration version.
-- Default values.
-- Validation.
-- Factory defaults.
-- Safe update.
-- Persistent storage.
-
-### Exit Criteria
-
-- Configuration survives reboot.
-- Invalid configuration is rejected.
-- Defaults can be restored.
-
----
-
-# 17. Phase 14: Main Device UI
-
-## Objective
-
-Create the complete physical-device user interface.
-
-### Screens
+Recommended:
 
 ```text
-Main
-Measurements
-Calibration
-Configuration
-System Status
+SSID: EC-TOF-Analyzer
+IP:   192.168.4.1
 ```
 
-### Main screen
-
-Display:
-
-- Conductivity
-- TOF
-- Distance
-- Measurement status
-
-Optional:
-
-- Battery level
-- SD status
-- Wi-Fi status
-
-### Navigation
-
-```text
-Encoder CW/CCW
-        ↓
-Select Item
-
-Encoder Press
-        ↓
-Open Item
-
-BACK
-        ↓
-Return
-
-START
-        ↓
-Start Measurement
-```
-
-### Exit Criteria
-
-- All screens are navigable.
-- START performs measurement.
-- Errors are visible.
-- UI does not block measurement operations.
-
----
-
-# 18. Phase 15: Wi-Fi Access Point
-
-## Objective
-
-Provide local wireless access.
-
-### Default configuration
-
-```text
-SSID:
-EC-TOF-Analyzer
-
-Mode:
-Wi-Fi Access Point
-
-Example IP:
-192.168.4.1
-```
-
-### Tasks
+## Tasks
 
 - Initialize Wi-Fi.
-- Configure AP.
-- Start DHCP.
+- Start access point.
+- Configure IP.
 - Handle client connections.
-- Display Wi-Fi status.
+- Handle Wi-Fi errors.
 
-### Exit Criteria
+## Expected Result
 
-- Phone or laptop can connect.
-- Device receives a client connection.
-- Web server is reachable.
+A phone, tablet, or computer can connect directly to the analyzer.
 
 ---
 
-# 19. Phase 16: HTTP Server
+# 28. Phase 25 - REST API
 
-## Objective
-
-Implement the local web interface.
-
-### Required pages
-
-```text
-/
- /dashboard
- /measurements
- /calibration
- /configuration
- /system
-```
-
-### REST endpoints
+Implement:
 
 ```text
 GET  /api/device
@@ -863,7 +886,6 @@ GET  /api/measurement/current
 POST /api/measurement/start
 
 GET  /api/measurements
-
 GET  /api/export/YYYY-MM-DD.csv
 
 GET  /api/calibration/ec
@@ -873,885 +895,675 @@ GET  /api/config
 POST /api/config
 ```
 
-### Architecture
+## Expected Result
 
-```text
-Web Request
-    ↓
-HTTP Handler
-    ↓
-Application Service
-    ↓
-Manager
-    ↓
-Driver
-```
-
-The HTTP layer must not directly control hardware drivers.
-
-### Exit Criteria
-
-- Dashboard loads.
-- Current measurement is displayed.
-- Measurement can be started.
-- Stored data can be viewed.
-- CSV data can be downloaded.
+The analyzer exposes measurement and system data through HTTP.
 
 ---
 
-# 20. Phase 17: Web Dashboard
+# 29. Phase 26 - Web UI
 
-## Objective
+## Pages
 
-Create a simple local browser interface.
+Implement:
 
 ### Dashboard
 
-```text
-+--------------------------------------+
-| EC-TOF ANALYZER                      |
-+--------------------------------------+
-| Conductivity                         |
-| 4.82 mS/cm                           |
-|                                      |
-| TOF                                  |
-| 12.482 us                            |
-|                                      |
-| Distance                             |
-| 18.73 mm                             |
-|                                      |
-| Status: READY                        |
-|                                      |
-| [ START MEASUREMENT ]                |
-+--------------------------------------+
-```
+Display:
 
-### Additional pages
+- EC
+- TOF
+- Distance
+- Status
+- Battery
 
-#### Measurements
+### Measurements
 
-Show:
+Display:
 
+- Measurement history
 - Timestamp
-- Conductivity
+- EC
 - TOF
 - Distance
 - Status
 
-#### Calibration
+### Calibration
 
-Provide controlled calibration operations.
+Provide calibration controls.
 
-#### Configuration
+### Configuration
 
-Provide device configuration.
+Provide configuration controls.
 
-#### System
+### System Status
 
-Show:
+Display:
 
 - Firmware version
 - Uptime
-- SD status
-- Wi-Fi status
 - RTC status
-- EC sensor status
-- TOF sensor status
-- System errors
+- SD status
+- Sensor status
+- Battery voltage
+- Battery percentage
+
+## Expected Result
+
+The complete device can be monitored and controlled from a local browser.
 
 ---
 
-# 21. Phase 18: Error Handling and System Hardening
+# 30. Phase 27 - Integrated Measurement Workflow
 
-## Objective
+At this stage all major subsystems shall be connected.
 
-Make the prototype stable during normal operation.
-
-### Required error conditions
+Complete flow:
 
 ```text
-EC sensor disconnected
-EC communication timeout
-RS485 communication error
-TOF timeout
-TOF invalid measurement
-SD card unavailable
-SD write failure
-RTC failure
-Wi-Fi initialization failure
-Configuration error
-Invalid calibration
-Low battery
-```
-
-### Error behavior
-
-The system should:
-
-1. Detect the error.
-2. Record the error.
-3. Display a useful message.
-4. Prevent invalid measurement logging.
-5. Recover automatically where possible.
-6. Continue operating other subsystems where safe.
-
-### Example
-
-```text
-EC SENSOR ERROR
-
-Unable to read conductivity.
-
-Check:
-- Sensor connection
-- RS485 connection
-- Sensor power
-
-[BACK]
-```
-
----
-
-# 22. Phase 19: Power System Integration
-
-## Objective
-
-Integrate battery operation.
-
-### Power architecture
-
-```text
-3.7 V Battery
-      |
-      +--------------------+
-      |                    |
-      v                    v
-12 V Boost             5 V Regulator
-      |                    |
-      v                    v
- SEN0707             TFT / HC-SR04
-                           |
-                           v
-                     3.3 V Logic
-                           |
-                           v
-                       ESP32-S3
-```
-
-### Tasks
-
-- Integrate battery.
-- Integrate USB-C charging.
-- Integrate power switch.
-- Add fuse/polyfuse.
-- Verify regulator output.
-- Verify sensor power.
-- Verify display power.
-- Measure current consumption.
-- Test charging.
-- Test low-battery behavior.
-
-### Important
-
-Do not assume theoretical battery runtime.
-
-Measure actual prototype consumption.
-
-### Exit Criteria
-
-- Device operates from battery.
-- Charging works.
-- Power switching works.
-- No unstable voltage behavior is observed.
-
----
-
-# 23. Phase 20: Enclosure Integration
-
-## Objective
-
-Create the first physical prototype enclosure.
-
-### Front panel
-
-Recommended:
-
-```text
-+--------------------------------------+
-|                                      |
-|          4" TFT DISPLAY              |
-|                                      |
-|                                      |
-|                              START   |
-|                                      |
-|       ROTARY             BACK        |
-|       ENCODER                        |
-|                                      |
-+--------------------------------------+
-```
-
-### External connections
-
-Provide removable connectors for:
-
-- EC sensor
-- Ultrasonic sensor
-- USB-C charging/programming
-
-### Internal considerations
-
-- Battery mounting
-- SD card access
-- ESP32 mounting
-- RS485 module
-- Boost converter
-- Wiring
-- Fuse
-- Power switch
-- Cable strain relief
-- Electrical isolation where needed
-
-### Exit Criteria
-
-- Components fit safely.
-- Sensors remain removable.
-- No exposed dangerous connections.
-- Buttons and display are accessible.
-
----
-
-# 24. Phase 21: Integrated Testing
-
-## Objective
-
-Verify the complete device.
-
-### Test sequence
-
-```text
-Power ON
-   ↓
-System Initialization
-   ↓
-Hardware Check
-   ↓
-READY
-   ↓
+User
+ │
+ ▼
 START
-   ↓
-TOF Measurement
-   ↓
-EC Measurement
-   ↓
-Validation
-   ↓
-Display
-   ↓
-Log
-   ↓
-READY
+ │
+ ▼
+Measurement Manager
+ │
+ ├──► TOF
+ │      │
+ │      ▼
+ │   Distance
+ │
+ └──► EC
+        │
+        ▼
+   Conductivity
+        │
+        ▼
+    Validation
+        │
+        ├──► TFT
+        │
+        ├──► Web
+        │
+        └──► SD
 ```
 
-### Basic test
+## Expected Result
 
-Perform at least:
-
-- 10 consecutive measurements.
-- 50 consecutive measurements.
-- Reboot test.
-- SD removal test.
-- EC sensor disconnect test.
-- Ultrasonic sensor disconnect test.
-- Wi-Fi reconnect test.
-- Battery operation test.
+One START action produces a complete measurement record.
 
 ---
 
-# 25. Test Matrix
+# 31. Phase 28 - Error Handling
 
-| Test Area | Test | Expected Result |
-|---|---|---|
-| Boot | Power ON | Device starts normally |
-| Display | Display initialization | Screen works |
-| Encoder | Rotate | Selection changes |
-| Encoder | Press | Selection opens |
-| START | Press | Measurement begins |
-| BACK | Press | Previous screen opens |
-| RTC | Read time | Correct timestamp |
-| SD | Insert card | Card mounts |
-| SD | Write CSV | Data is stored |
-| SD | Remove card | Error handled |
-| EC | Read sensor | Conductivity returned |
-| EC | Disconnect | Error reported |
-| RS485 | Invalid frame | Frame rejected |
-| TOF | Valid echo | TOF returned |
-| TOF | No echo | Timeout |
-| Calibration | Save calibration | Value persists |
-| Wi-Fi | Connect phone | AP connection succeeds |
-| Web | Open dashboard | Dashboard loads |
-| Web | Start measurement | Measurement starts |
-| Web | Export CSV | File downloads |
-| Power | Battery operation | Device operates |
-| Power | USB charging | Battery charges |
-| Recovery | Reboot | System recovers |
+Implement consistent error handling.
 
----
+## EC Errors
 
-# 26. Milestones
+- Sensor disconnected
+- RS485 timeout
+- CRC failure
+- Invalid Modbus response
+- UART failure
 
-## Milestone 1: Controller Bring-Up
+## TOF Errors
 
-Deliverables:
+- No echo
+- Timeout
+- Invalid pulse
+- Out-of-range distance
 
-- ESP32-S3 project
-- GPIO testing
-- Serial logging
-- Basic system startup
+## SD Errors
 
----
+- Card missing
+- Mount failure
+- Write failure
+- Filesystem error
 
-## Milestone 2: UI Hardware
+## RTC Errors
 
-Deliverables:
+- Communication failure
+- Invalid time
 
-- TFT working
-- Rotary encoder working
-- START button working
-- BACK button working
+## Battery Errors
+
+- ADC failure
+- Invalid voltage
+- Low battery
+
+## Expected Result
+
+Failures are reported clearly without crashing the system.
 
 ---
 
-## Milestone 3: Storage and Time
+# 32. Phase 29 - System Status
 
-Deliverables:
+Create a system health summary.
 
-- DS3231 working
-- MicroSD working
-- CSV logging working
+Example:
 
----
+```text
+SYSTEM STATUS
 
-## Milestone 4: EC Sensor
+EC Sensor:     OK
+TOF Sensor:    OK
+RTC:           OK
+SD Card:       OK
+Wi-Fi:         OK
 
-Deliverables:
+Battery:       3.82 V
+Battery:       52%
+Battery State: NORMAL
+```
 
-- UART working
-- RS485 working
-- SEN0707 communication working
-- Conductivity readings available
-
----
-
-## Milestone 5: TOF
-
-Deliverables:
-
-- HC-SR04 working
-- TOF measurement working
-- Prototype distance calculation working
+The same information shall be available through the web interface.
 
 ---
 
-## Milestone 6: Measurement Engine
+# 33. Phase 30 - Prototype Enclosure
 
-Deliverables:
+## Objectives
 
-- Measurement state machine
-- EC + TOF integration
-- Measurement validation
-- Displayed results
-- Logged results
+Integrate the electronics into the physical prototype.
 
----
+## Tasks
 
-## Milestone 7: Calibration
+- Design enclosure.
+- Mount TFT.
+- Mount rotary encoder.
+- Mount START button.
+- Mount BACK button.
+- Mount power switch.
+- Add USB-C access.
+- Add sensor connectors.
+- Add SD access if required.
+- Provide battery compartment.
+- Provide strain relief.
+- Provide ventilation where required.
 
-Deliverables:
-
-- EC calibration
-- TOF calibration
-- NVS persistence
-
----
-
-## Milestone 8: Web Interface
-
-Deliverables:
-
-- Wi-Fi AP
-- HTTP server
-- REST API
-- Dashboard
-- Data export
+External sensors shall remain removable.
 
 ---
 
-## Milestone 9: Portable Prototype
+# 34. Phase 31 - Hardware Integration Testing
 
-Deliverables:
+Test every subsystem independently.
 
-- Battery operation
-- Charging
-- Power switch
-- Enclosure
-- External sensor connectors
+## EC
 
----
+- Sensor connection
+- Sensor disconnection
+- Conductivity readings
+- RS485 communication
+- CRC handling
+- Timeout handling
 
-## Milestone 10: V0.1 Validation
+## TOF
 
-Deliverables:
-
-- Full system test
-- Error recovery test
-- Measurement repeatability test
-- Data logging validation
-- Battery validation
-- Documentation
-
----
-
-# 27. Definition of Done
-
-A feature is considered complete when:
-
-- Code is implemented.
-- Code compiles without warnings that affect operation.
-- Hardware is tested.
-- Normal operation works.
-- Error handling is implemented.
-- Serial logs are understandable.
-- The feature does not break existing functions.
-- Relevant test cases pass.
-- Configuration is documented.
-- The implementation is committed to Git.
-
----
-
-# 28. V0.1 Acceptance Criteria
-
-The prototype is considered complete when all of the following are functional.
-
-## Measurement
-
-- Conductivity can be measured.
-- Ultrasonic TOF can be measured.
-- Prototype distance can be calculated.
-- Measurements have timestamps.
-- Invalid measurements are rejected.
+- Trigger
+- Echo
+- Timing
+- Distance calculation
+- Timeout
 
 ## Display
 
-- Current measurement is visible.
-- Device status is visible.
-- Errors are visible.
-- Physical controls operate correctly.
+- Startup
+- Screen switching
+- Measurement display
+- Error display
+- Battery indicator
 
-## Storage
+## Input
 
-- Measurements can be stored on MicroSD.
-- CSV files contain valid data.
-- Data survives device reboot.
+- Encoder
+- Encoder press
+- START
+- BACK
+
+## SD
+
+- Mount
+- File creation
+- Logging
+- Removal
+- Write failure
 
 ## RTC
 
-- Measurements contain valid timestamps.
-- RTC configuration can be maintained.
+- Read
+- Write
+- Timestamp generation
 
-## Calibration
+## Battery
 
-- EC calibration is supported.
-- TOF calibration is supported.
-- Calibration survives reboot.
+- ADC voltage
+- Percentage estimation
+- Low battery indication
+- Charging behavior
 
-## Connectivity
+## Wi-Fi
 
-- Device can create a local Wi-Fi AP.
-- Browser can connect.
-- Current measurements can be viewed.
-- Measurements can be exported.
-
-## Power
-
-- Device can operate from battery.
-- Battery can be charged using USB-C.
-- Device can be turned off using a physical switch.
-
-## Reliability
-
-- Sensor disconnection is detected.
-- Sensor timeout is detected.
-- SD errors are handled.
-- The system does not hang during normal sensor failures.
+- Access point
+- Connection
+- Dashboard
+- REST API
 
 ---
 
-# 29. Risk Register
+# 35. Phase 32 - Measurement Repeatability Testing
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| HC-SR04 unsuitable for final TOF application | High | Keep TOF driver replaceable |
-| RS485 noise | High | Proper wiring, grounding and termination |
-| SEN0707 power requirement | Medium | Dedicated 12 V boost converter |
-| Battery runtime lower than expected | Medium | Measure actual consumption |
-| SD card write failure | Medium | Error handling and buffered writes |
-| Electrical noise from boost converters | High | Separate power paths and filtering |
-| ESP32 GPIO conflicts | Medium | Complete pin mapping before PCB |
-| Display SPI conflicts | Medium | Confirm SPI bus architecture early |
-| TOF environmental variation | High | Use controlled test geometry |
-| Sensor calibration drift | Medium | Store calibration parameters and validate |
-| Heat from regulators | Medium | Measure thermal performance |
-| Enclosure space | Medium | Prototype physical layout early |
-| Wi-Fi affects timing | Medium | Keep measurement timing independent |
+The prototype shall be tested using repeatable reference conditions.
 
----
+## EC Testing
 
-# 30. Prototype vs Production Boundary
+Measure the same sample multiple times.
 
-V0.1 must remain a prototype.
+Record:
 
-The following components or methods are not considered production-final:
+- Minimum
+- Maximum
+- Average
+- Variation
 
-### Ultrasonic
+## TOF Testing
 
-HC-SR04 is only a feasibility component.
+Measure known distances repeatedly.
 
-A final acoustic or ultrasonic transducer system must be evaluated separately.
+Record:
 
-### Power
+- Reference distance
+- Measured distance
+- Error
+- Repeatability
 
-The initial battery and boost converter architecture is for prototype validation.
-
-Production hardware may require:
-
-- Dedicated power-management IC
-- Battery protection
-- Fuel gauge
-- Better regulation
-- EMI filtering
-- Thermal design
-
-### PCB
-
-V0.1 may use development boards and modules.
-
-Production should move toward:
-
-- Custom PCB
-- Controlled grounding
-- Proper connectorization
-- EMI protection
-- ESD protection
-- Production power architecture
-
-### Enclosure
-
-The first enclosure can be 3D printed.
-
-Production enclosure requirements will be defined after prototype testing.
+The purpose is to determine whether the prototype measurement concept is viable.
 
 ---
 
-# 31. Recommended Development Order
+# 36. Phase 33 - Long-Run Testing
 
-The implementation order should remain:
+The system shall operate continuously for an extended period.
+
+Test:
+
+- Sensor communication
+- SD logging
+- Display operation
+- Wi-Fi
+- RTC
+- Battery operation
+- Memory stability
+- Task stability
+
+Monitor for:
+
+- Crashes
+- Watchdog resets
+- Memory leaks
+- Sensor communication failures
+- SD corruption
+- Unexpected reboots
+
+---
+
+# 37. Phase 34 - Battery Runtime Test
+
+Battery runtime shall be tested under representative operating conditions.
+
+Record:
+
+- Starting battery voltage
+- Starting estimated percentage
+- Test duration
+- Measurement frequency
+- Display usage
+- Wi-Fi usage
+- Ending battery voltage
+- Ending estimated percentage
+
+The test shall evaluate practical runtime.
+
+Battery current measurement is not required.
+
+---
+
+# 38. Phase 35 - Final V0.1 Validation
+
+Perform the complete workflow.
 
 ```text
-1. ESP-IDF Project
-2. ESP32-S3 Bring-Up
-3. GPIO
-4. TFT Driver
-5. Input Manager
-6. RTC
-7. MicroSD
-8. UART
-9. RS485
-10. SEN0707 Modbus Driver
-11. EC Measurement
-12. HC-SR04 Driver
-13. TOF Measurement
-14. Measurement Manager
-15. Calibration
-16. Configuration
-17. Integrated UI
-18. Wi-Fi AP
-19. REST API
-20. Web UI
-21. Error Handling
-22. Battery System
-23. Enclosure
-24. System Testing
-25. V0.1 Validation
+Power On
+   │
+   ▼
+System Initialization
+   │
+   ▼
+Battery Indicator
+   │
+   ▼
+Sensor Check
+   │
+   ▼
+READY
+   │
+   ▼
+START
+   │
+   ▼
+TOF Measurement
+   │
+   ▼
+Distance Calculation
+   │
+   ▼
+EC Measurement
+   │
+   ▼
+Validation
+   │
+   ▼
+Display
+   │
+   ▼
+SD Logging
+   │
+   ▼
+Web Update
+   │
+   ▼
+READY
 ```
 
-Do not skip directly to the complete application.
+---
 
-Each subsystem should be validated before the next integration stage.
+# 39. Development Milestones
+
+## Milestone 1 - Controller
+
+- ESP32-S3 boots
+- Project builds
+- Basic drivers work
+
+## Milestone 2 - EC
+
+- RS485 works
+- SEN0707 responds
+- Conductivity is readable
+
+## Milestone 3 - TOF
+
+- HC-SR04 works
+- TOF is measured
+- Distance is calculated
+
+## Milestone 4 - UI
+
+- TFT works
+- Encoder works
+- Buttons work
+
+## Milestone 5 - Measurement
+
+- Complete measurement state machine works
+
+## Milestone 6 - Data
+
+- RTC works
+- SD logging works
+
+## Milestone 7 - Battery
+
+- Battery voltage works
+- Battery percentage works
+- Battery indicator works
+
+## Milestone 8 - Web
+
+- Wi-Fi works
+- REST API works
+- Web dashboard works
+
+## Milestone 9 - Calibration
+
+- EC calibration works
+- TOF calibration works
+
+## Milestone 10 - Integrated Prototype
+
+- Complete system works from battery
+- Measurements are repeatable
+- Data is logged
+- Web interface works
+- Physical controls work
 
 ---
 
-# 32. Git Development Strategy
+# 40. Definition of Done
 
-Use small commits.
-
-Recommended commit structure:
-
-```text
-feat: initialize ESP32-S3 project
-feat: add GPIO driver
-feat: add ST7796 display driver
-feat: add input manager
-feat: add DS3231 RTC driver
-feat: add SD storage manager
-feat: add UART driver
-feat: add RS485 driver
-feat: add SEN0707 driver
-feat: add EC measurement
-feat: add HC-SR04 driver
-feat: add TOF measurement
-feat: add measurement manager
-feat: add calibration manager
-feat: add configuration manager
-feat: add Wi-Fi AP
-feat: add REST API
-feat: add web dashboard
-feat: add system error handling
-feat: add battery monitoring
-test: add integrated measurement tests
-test: add system validation tests
-```
-
-Avoid large commits containing multiple unrelated subsystems.
-
----
-
-# 33. Development Rules
-
-The following rules apply throughout implementation.
-
-### Rule 1: Keep drivers independent
-
-Drivers must not contain UI logic.
-
-### Rule 2: Keep UI independent
-
-The display must consume application data.
-
-### Rule 3: Keep web independent
-
-The web server must communicate with application managers.
-
-### Rule 4: Avoid blocking operations
-
-Sensor and storage operations must use controlled timeouts.
-
-### Rule 5: Never wait indefinitely
-
-Every external communication operation requires a timeout.
-
-### Rule 6: Validate sensor data
-
-Never log a measurement simply because a sensor returned a value.
-
-### Rule 7: Protect the filesystem
-
-Do not continuously write unnecessary data to the SD card.
-
-### Rule 8: Keep TOF replaceable
-
-The HC-SR04 implementation must not define the architecture of the final TOF system.
-
-### Rule 9: Keep configuration persistent
-
-Calibration and important configuration must survive reboot.
-
-### Rule 10: Prefer simple solutions
-
-Do not add an abstraction unless it provides a clear benefit.
-
----
-
-# 34. Future Development
-
-After V0.1 validation, the following can be evaluated.
+V0.1 shall be considered complete when all of the following are satisfied.
 
 ## Hardware
 
-- Laboratory-grade ultrasonic transducer.
-- Improved acoustic receiver.
-- Custom analog front-end.
-- Higher precision timing hardware.
-- Custom PCB.
-- Battery fuel gauge.
-- Improved power management.
-- Industrial connectors.
-- ESD protection.
-- EMI filtering.
+- ESP32-S3 installed.
+- SEN0707 connected through RS485.
+- HC-SR04 connected safely.
+- TFT connected.
+- MicroSD connected.
+- DS3231 connected.
+- Rotary encoder connected.
+- START button connected.
+- BACK button connected.
+- Battery installed.
+- USB-C charging works.
+- Power rails operate correctly.
+- External sensors are removable.
 
-## Software
+## Firmware
 
-- More advanced TOF processing.
-- Signal quality analysis.
-- Multiple measurement profiles.
-- Automatic calibration workflows.
-- Advanced measurement statistics.
-- Device configuration backup.
-- Firmware update through web interface.
-- Measurement graphs.
-- Export formats beyond CSV.
+- ESP-IDF project builds.
+- Firmware boots reliably.
+- Sensor drivers operate.
+- Measurement state machine operates.
+- EC measurement works.
+- TOF measurement works.
+- Distance calculation works.
+- RTC timestamps work.
+- SD logging works.
+- Configuration persists.
+- Calibration persists.
+- Battery voltage is measured.
+- Battery indicator works.
+- Wi-Fi works.
+- REST API works.
+- Web UI works.
+- Error handling works.
 
-## Connectivity
+## Validation
 
-Potential future options:
-
-- USB data interface.
-- Bluetooth.
-- Wi-Fi network mode.
-- Remote data collection.
-- Cloud integration.
-
-These features are outside V0.1.
+- EC repeatability tested.
+- TOF repeatability tested.
+- SD logging tested.
+- Battery operation tested.
+- Wi-Fi tested.
+- Long-run operation tested.
+- Complete measurement workflow tested.
 
 ---
 
-# 35. Final Implementation Architecture
+# 41. Prototype Limitations
 
-The completed V0.1 firmware should follow this structure:
+V0.1 is a development prototype.
+
+The following limitations shall be documented:
+
+### Conductivity
+
+The SEN0707 is intended for the defined conductivity range and sample type.
+
+Final application-specific validation is required.
+
+### Ultrasonic
+
+The HC-SR04 is a low-cost air ultrasonic module.
+
+It is not the final laboratory-grade acoustic measurement system.
+
+The V0.1 TOF implementation therefore validates the measurement architecture rather than final liquid/acoustic measurement performance.
+
+### Battery
+
+Battery percentage is estimated from voltage.
+
+It is not a precision state-of-charge measurement.
+
+### Enclosure
+
+The prototype enclosure may not provide final environmental protection.
+
+### Accuracy
+
+V0.1 accuracy shall not be considered production accuracy.
+
+---
+
+# 42. Future Improvements
+
+Potential future improvements include:
+
+- Production-grade ultrasonic transducer
+- Dedicated ultrasonic receiver
+- Higher-precision TOF timing
+- Improved acoustic measurement method
+- Improved conductivity sensor
+- Dedicated battery fuel gauge
+- Advanced battery management
+- USB data export
+- OTA firmware update
+- Cloud synchronization
+- Measurement history analytics
+- User authentication
+- Improved enclosure
+- Waterproof connectors
+- Production PCB
+- EMC improvements
+- Factory calibration workflow
+
+These features should only be added after the V0.1 measurement concept has been validated.
+
+---
+
+# 43. Final Development Order
+
+The recommended final development order is:
 
 ```text
-                    +----------------------+
-                    |       UI Layer       |
-                    | TFT + Input + Web    |
-                    +----------+-----------+
-                               |
-                               v
-                    +----------------------+
-                    |  Application Layer   |
-                    | Measurement Manager  |
-                    | Calibration Manager  |
-                    | Configuration        |
-                    +----------+-----------+
-                               |
-              +----------------+----------------+
-              |                                 |
-              v                                 v
-     +------------------+              +------------------+
-     | Sensor Managers  |              | Storage / RTC    |
-     | EC / TOF         |              | SD / DS3231      |
-     +--------+---------+              +------------------+
-              |
-              v
-     +---------------------------+
-     |       Driver Layer        |
-     | UART / RS485 / SPI / GPIO |
-     | I2C / Timer               |
-     +-------------+-------------+
-                   |
-                   v
-     +---------------------------+
-     |       Hardware            |
-     | ESP32-S3                  |
-     | SEN0707                   |
-     | HC-SR04                   |
-     | ST7796                    |
-     | DS3231                    |
-     | MicroSD                   |
-     +---------------------------+
+01. ESP32-S3 Bring-Up
+        │
+02. Project Architecture
+        │
+03. GPIO
+        │
+04. UART
+        │
+05. RS485
+        │
+06. SEN0707
+        │
+07. EC Manager
+        │
+08. HC-SR04 GPIO
+        │
+09. TOF Driver
+        │
+10. TOF Abstraction
+        │
+11. Distance Calculation
+        │
+12. TFT Driver
+        │
+13. Display Manager
+        │
+14. Physical Input
+        │
+15. Measurement Manager
+        │
+16. RTC
+        │
+17. MicroSD
+        │
+18. Data Logging
+        │
+19. Battery Hardware
+        │
+20. Battery Voltage
+        │
+21. Battery Indicator
+        │
+22. Configuration
+        │
+23. Calibration
+        │
+24. Wi-Fi
+        │
+25. REST API
+        │
+26. Web UI
+        │
+27. Integrated Measurement
+        │
+28. Error Handling
+        │
+29. System Status
+        │
+30. Enclosure
+        │
+31. Hardware Testing
+        │
+32. Repeatability Testing
+        │
+33. Long-Run Testing
+        │
+34. Battery Runtime Testing
+        │
+35. Final V0.1 Validation
 ```
 
 ---
 
-# 36. Final Implementation Goal
+# 44. Final V0.1 Goal
 
-The V0.1 implementation is successful when the prototype can perform this complete workflow:
-
-```text
-Power ON
-   ↓
-Initialize Hardware
-   ↓
-Check Sensors
-   ↓
-READY
-   ↓
-User Presses START
-   ↓
-Trigger Ultrasonic Measurement
-   ↓
-Measure TOF
-   ↓
-Calculate Prototype Distance
-   ↓
-Read SEN0707 Conductivity
-   ↓
-Validate Results
-   ↓
-Display Measurement
-   ↓
-Timestamp Measurement
-   ↓
-Write CSV to MicroSD
-   ↓
-Update Web Interface
-   ↓
-Return to READY
-```
-
-The most important architectural requirement is that **the measurement application must not depend directly on the HC-SR04 hardware**.
-
-The TOF sensor must remain replaceable.
-
-This allows V0.1 to prove the overall EC + TOF measurement workflow while leaving room for a more suitable laboratory-grade ultrasonic implementation in the next hardware revision.
-
----
-
-# 37. V0.1 Implementation Baseline
-
-| Area | V0.1 Implementation |
-|---|---|
-| MCU | ESP32-S3 |
-| Firmware | ESP-IDF + C++ |
-| EC Sensor | DFRobot SEN0707 |
-| EC Interface | RS485 Modbus RTU |
-| RS485 | MAX3485 |
-| TOF Sensor | HC-SR04 |
-| TOF Purpose | Prototype / feasibility |
-| Display | 4" 480x320 ST7796 SPI |
-| RTC | DS3231 |
-| Storage | MicroSD |
-| Input | Rotary encoder + buttons |
-| Wireless | ESP32 Wi-Fi AP |
-| Web | Local HTTP server |
-| Battery | 3.7 V 5000 mAh target |
-| EC Power | 12 V boost |
-| Charging | USB-C |
-| Logging | CSV |
-| Configuration | ESP32 NVS |
-| Calibration | EC + TOF |
-| Architecture | Modular |
-| Production Status | Prototype |
-
----
-
-# 38. Implementation Completion
-
-When all milestones and acceptance criteria are complete, the project can be tagged:
+The final prototype shall provide a portable instrument capable of performing the following workflow:
 
 ```text
-EC-TOF Analyzer V0.1
+┌──────────────────────────────┐
+│       EC-TOF ANALYZER        │
+│                              │
+│  Battery: 🔋 78%             │
+│                              │
+│  Conductivity: 4.82 mS/cm   │
+│  TOF:          12.482 us     │
+│  Distance:     18.73 mm      │
+│                              │
+│  Status: READY                │
+└──────────────────────────────┘
 ```
 
-The next development phase should not immediately become V1.0.
+The user presses START.
 
-Instead, the prototype results should be reviewed to determine:
+The analyzer:
 
-1. Whether the EC measurement meets the customer's requirement.
-2. Whether the TOF measurement concept is technically viable.
-3. Whether the HC-SR04 must be replaced.
-4. What ultrasonic transducer architecture is required.
-5. What accuracy and repeatability can actually be achieved.
-6. Whether a custom PCB is justified.
-7. Whether the battery architecture is sufficient.
-8. What changes are required for a production-oriented V1 design.
+1. Triggers the ultrasonic measurement.
+2. Measures TOF.
+3. Calculates distance.
+4. Reads conductivity.
+5. Validates the result.
+6. Displays the result.
+7. Adds a timestamp.
+8. Saves the result to MicroSD.
+9. Makes the result available through the local web interface.
+10. Returns to READY.
 
-Only after these questions are answered should the project move into the next hardware and software revision.
+The V0.1 implementation should prioritize proving this complete workflow before adding advanced features.

@@ -1,342 +1,548 @@
-# EC-TOF Analyzer
+# EC-TOF Analyzer V0.1
+# Hardware Design
 
-## Hardware Design
-
-Version: 0.1  
-Status: Prototype Planning  
-Related Documents:
-
-- `01-product-requirements.md`
-- `02-technical-requirements.md`
-- `03-system-architecture.md`
-
----
-
-# 1. Purpose
+## 1. Purpose
 
 This document defines the hardware design for the EC-TOF Analyzer V0.1 prototype.
 
-It covers:
+The hardware must support:
 
-- Hardware components
-- Controller
-- Sensor interfaces
-- GPIO allocation
-- Power architecture
-- RS485 interface
-- Ultrasonic interface
-- Display interface
-- SD card interface
-- RTC interface
-- User controls
-- Battery and charging
-- Connectors
-- Electrical protection
-- Wiring
-- Enclosure layout
-- Bill of materials
-- Hardware expansion points
+- Electrical conductivity measurement.
+- Ultrasonic time-of-flight measurement.
+- Distance calculation.
+- Local measurement display.
+- Measurement logging.
+- Real-time timestamps.
+- Local Wi-Fi connectivity.
+- Battery-powered operation.
+- Rechargeable battery.
+- Simple battery level indication.
+- Physical user controls.
+- Removable external sensors.
 
-The design prioritizes readily available modules and components.
+V0.1 is a functional prototype.
 
-A custom PCB is not required for V0.1.
+The hardware is designed to prove the measurement workflow before moving to a production-grade ultrasonic measurement system.
 
 ---
 
-# 2. Hardware Design Principles
+# 2. Hardware Architecture
 
-The hardware shall follow these principles:
-
-1. Use off-the-shelf components.
-2. Keep sensors removable.
-3. Keep the ESP32-S3 development board replaceable.
-4. Avoid I2C for external sensors.
-5. Keep noisy power circuits separated from sensitive signal wiring.
-6. Protect ESP32-S3 GPIOs from incompatible voltage levels.
-7. Use connectors instead of permanent sensor wiring.
-8. Provide accessible test points during development.
-9. Use modular power converters during V0.1.
-10. Leave expansion capability for future hardware.
-
----
-
-# 3. Hardware Block Diagram
+The system uses an ESP32-S3 as the main controller.
 
 ```text
-                           EC-TOF ANALYZER
-                                  │
-                         ┌────────▼────────┐
-                         │   ESP32-S3      │
-                         │ DevKitC-1-N8R8  │
-                         └────────┬────────┘
-                                  │
-         ┌────────────────────────┼────────────────────────┐
-         │                        │                        │
-         ▼                        ▼                        ▼
-    EC Interface             TOF Interface             Display
-         │                        │                        │
-      UART                    GPIO/RMT                  SPI
-         │                        │                        │
-      MAX3485                 HC-SR04                 ST7796
-         │
-      RS485
-         │
-     SEN0707
+                         ┌──────────────────────┐
+                         │      ESP32-S3        │
+                         │   Main Controller    │
+                         └──────────┬───────────┘
+                                    │
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────┐           ┌───────────────┐          ┌───────────────┐
+│ EC Sensor     │           │ TOF Sensor    │          │ TFT Display   │
+│ SEN0707       │           │ HC-SR04       │          │ ST7796        │
+│ RS485         │           │ Ultrasonic    │          │ SPI           │
+└───────┬───────┘           └───────────────┘          └───────────────┘
+        │
+        ▼
+┌───────────────┐
+│ MAX3485       │
+│ RS485         │
+└───────────────┘
 
-         ┌────────────────────────┼────────────────────────┐
-         │                        │                        │
-         ▼                        ▼                        ▼
-       RTC                       SD                    Controls
-         │                        │                        │
-       I2C                       SPI                      GPIO
-         │                        │                        │
-     DS3231                  MicroSD Card          Encoder/Buttons
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────┐           ┌───────────────┐          ┌───────────────┐
+│ MicroSD       │           │ DS3231 RTC    │          │ User Controls │
+│ SPI           │           │ I2C           │          │ Encoder       │
+└───────────────┘           └───────────────┘          │ START / BACK  │
+                                                       └───────────────┘
 
-                                  │
-                                  ▼
-                             Power System
-                                  │
-                           ┌──────┴──────┐
-                           │             │
-                        Battery       USB-C
+                         ┌──────────────────────┐
+                         │ Battery / Power      │
+                         │ 3.7 V Li-ion        │
+                         └──────────┬───────────┘
+                                    │
+              ┌─────────────────────┼─────────────────────┐
+              ▼                     ▼                     ▼
+         12 V Boost              5 V Rail              3.3 V Rail
+              │                     │                     │
+              ▼                     ▼                     ▼
+         SEN0707               TFT / HC-SR04          ESP32-S3
 ```
 
 ---
 
-# 4. Main Controller
+# 3. Main Controller
 
-## 4.1 ESP32-S3 Development Board
+## 3.1 ESP32-S3-DevKitC-1-N8R8
 
-Selected controller:
+The ESP32-S3-DevKitC-1-N8R8 is the primary controller.
 
-**ESP32-S3-DevKitC-1-N8R8**
+### Responsibilities
 
-Responsibilities:
+- Sensor communication.
+- Measurement sequencing.
+- TOF timing.
+- Distance calculation.
+- Conductivity acquisition.
+- Display control.
+- Physical input handling.
+- RTC communication.
+- SD card logging.
+- Battery voltage measurement.
+- Battery percentage estimation.
+- Wi-Fi access point.
+- REST API.
+- Configuration management.
+- Calibration management.
+- System status management.
 
-- Main application processor
-- Wi-Fi
-- Sensor communication
-- Display control
-- User input
-- SD card
-- RTC
-- Measurement processing
-- Data logging
-- Web server
+### Recommended configuration
 
-The development board shall remain removable during the prototype stage.
-
----
-
-# 5. Component Selection
-
-## 5.1 Primary Components
-
-| Component | Selection | Purpose |
-|---|---|---|
-| MCU | ESP32-S3-DevKitC-1-N8R8 | Main controller |
-| EC Sensor | DFRobot SEN0707 | Conductivity measurement |
-| RS485 | MAX3485 module | EC communication |
-| Ultrasonic | HC-SR04 | V0.1 TOF prototype |
-| Display | 4" 480×320 ST7796 SPI TFT | Local UI |
-| RTC | DS3231 | Date/time |
-| Storage | MicroSD SPI module | Data logging |
-| Battery | 3.7 V 5000 mAh Li-ion/LiPo | Portable power |
-| Charger | USB-C 1S Li-ion charger | Battery charging |
-| EC Boost | 3.7 V → 12 V boost | SEN0707 power |
-| Peripheral Supply | 3.7 V → 5 V converter | TFT/HC-SR04 |
-| Input | Rotary encoder | Navigation |
-| Input | START button | Measurement |
-| Input | BACK button | Navigation |
-| Main Switch | SPST power switch | Power control |
-| Protection | Fuse/polyfuse | Power protection |
+| Parameter | Specification |
+|---|---|
+| MCU | ESP32-S3 |
+| Flash | 8 MB |
+| PSRAM | 8 MB |
+| Firmware | ESP-IDF |
+| Logic voltage | 3.3 V |
+| Wi-Fi | 2.4 GHz |
+| Main interface | USB |
+| Programming | USB |
 
 ---
 
-# 6. Power Architecture
+# 4. Electrical Conductivity Sensor
 
-The battery is the primary power source.
+## 4.1 DFRobot SEN0707
+
+The SEN0707 is the primary conductivity sensor for V0.1.
+
+### Specifications
+
+| Parameter | Specification |
+|---|---|
+| Sensor | Industrial water conductivity sensor |
+| Model | SEN0707 |
+| Cell constant | K=10 |
+| Measurement range | 10 to 20,000 µS/cm |
+| Resolution | 1 µS/cm |
+| Accuracy | ±1% FS |
+| Interface | RS485 |
+| Protocol | Modbus-RTU |
+| Supply | 10 to 30 V DC |
+| Power | Approximately 0.4 W |
+| Protection | IP68 |
+| Temperature compensation | Built-in |
+
+The sensor includes calibration solution for initial verification.
+
+### V0.1 connection
 
 ```text
-                    3.7 V Battery
-                          │
-                          ▼
-                    Main Power Switch
-                          │
-             ┌────────────┼─────────────┐
-             │            │             │
-             ▼            ▼             ▼
-          12 V Boost    5 V Rail     ESP32 Power
-             │            │
-             ▼       ┌────┴────┐
-          SEN0707     │         │
-                      ▼         ▼
-                     TFT      HC-SR04
+ESP32-S3 UART
+      │
+      ▼
+ MAX3485
+ RS485 Transceiver
+      │
+      ▼
+  SEN0707
 ```
 
-The actual 3.3 V supply for logic shall follow the selected ESP32-S3 development board's recommended power input.
+The SEN0707 must be connected through a removable external connector.
 
 ---
 
-# 7. Voltage Domains
+# 5. RS485 Interface
 
-The prototype shall use three primary voltage domains.
+## 5.1 MAX3485
 
-## 7.1 Battery Domain
+The MAX3485 provides the physical RS485 interface between the ESP32-S3 and the SEN0707.
 
-Nominal:
+### Signals
 
 ```text
-3.7 V
+ESP32-S3                 MAX3485                 SEN0707
+─────────                ───────                 ───────
+UART TX  ──────────────► DI
+UART RX  ◄────────────── RO
+GPIO     ──────────────► DE/RE
+                         A ───────────────────── A
+                         B ───────────────────── B
+GND      ─────────────── GND ─────────────────── GND
 ```
 
-Actual lithium battery voltage varies during charging and discharge.
+### Design requirements
 
-Expected operating range depends on the selected battery and protection circuit.
+- Use 3.3 V-compatible RS485 hardware.
+- Keep RS485 wiring short where practical.
+- Use twisted-pair wiring for A/B.
+- Keep RS485 wiring away from noisy power switching.
+- Provide a removable sensor connector.
+- Add termination only when required by the physical bus configuration.
+- Avoid unnecessary external pull-ups or pull-downs.
+- Protect the ESP32 UART interface from incorrect external wiring.
 
 ---
 
-## 7.2 12 V Sensor Domain
+# 6. Ultrasonic Sensor
 
-Used by:
+## 6.1 HC-SR04
 
-```text
-SEN0707
-```
+The HC-SR04 is selected for V0.1 as a low-cost ultrasonic feasibility sensor.
 
-Target:
+It is not considered the final production ultrasonic sensor.
 
-```text
-12 V DC
-```
+### Purpose
 
-The boost converter shall provide sufficient current for the SEN0707 with engineering margin.
+The HC-SR04 allows the project to validate:
 
-The exact converter shall be selected based on measured system load.
+- Trigger generation.
+- Echo timing.
+- TOF measurement.
+- Distance calculation.
+- Measurement sequencing.
+- Data logging.
+- UI presentation.
 
----
+### Important limitation
 
-## 7.3 5 V Peripheral Domain
+The HC-SR04 is an air ultrasonic ranging module.
 
-Used by:
+V0.1 must not treat it as a laboratory-grade submerged ultrasonic measurement system.
 
-```text
-HC-SR04
-TFT
-```
-
-The exact TFT supply requirement must be verified against the selected module.
-
-If the TFT module requires 3.3 V instead of 5 V, the module shall be powered according to its specific electrical design.
+The final acoustic transducer and receiver architecture will be selected after the measurement method has been validated.
 
 ---
 
-## 7.4 3.3 V Logic Domain
-
-Used by:
+## 6.2 HC-SR04 Interface
 
 ```text
 ESP32-S3
-MAX3485
-DS3231
-Input logic
+   │
+   ├──── TRIG ───────────────► HC-SR04 TRIG
+   │
+   └──── ECHO ◄──── Level Shift ◄──── HC-SR04 ECHO
 ```
 
-All signals connected directly to ESP32-S3 GPIOs must remain within ESP32-S3 voltage limits.
+The HC-SR04 ECHO output can be approximately 5 V.
 
----
+The ESP32-S3 GPIO is 3.3 V logic.
 
-# 8. Battery
+Therefore, the ECHO signal must pass through a suitable voltage divider or level-shifting circuit before reaching the ESP32-S3.
 
-## 8.1 Battery Specification
-
-Initial target:
+### Example divider
 
 ```text
-Type: Rechargeable Li-ion / LiPo
-Nominal voltage: 3.7 V
-Capacity: 5000 mAh
-Cells: 1S
+HC-SR04 ECHO
+     │
+     R1
+     │
+     ├────────────► ESP32 GPIO
+     │
+     R2
+     │
+    GND
 ```
 
-The battery shall include suitable protection.
-
-A protected battery is preferred for the prototype.
+The resistor values must produce a safe ESP32 input voltage.
 
 ---
 
-# 9. Battery Charging
+# 7. TOF Measurement Hardware
 
-The battery shall be charged through USB-C.
+The hardware must allow the HC-SR04 to be replaced later.
 
-Basic architecture:
+The ultrasonic sensor must therefore use a removable connector.
+
+### Recommended architecture
+
+```text
+ESP32-S3
+   │
+   ▼
+TOF Interface
+   │
+   ▼
+Removable Connector
+   │
+   ▼
+Ultrasonic Sensor
+```
+
+The connector should expose only the required signals:
+
+- VCC.
+- GND.
+- TRIG.
+- ECHO.
+
+The firmware must not depend directly on the HC-SR04 implementation.
+
+---
+
+# 8. Display
+
+## 8.1 4-inch ST7796 TFT
+
+The V0.1 display is a 4-inch 480x320 SPI TFT using the ST7796 controller.
+
+### Requirements
+
+- 480x320 resolution.
+- SPI interface.
+- Non-touch.
+- Removable connector.
+- Suitable for local outdoor or laboratory prototype viewing.
+- 3.3 V logic compatibility.
+
+### Main display
+
+```text
+┌──────────────────────────────────────┐
+│ EC-TOF ANALYZER               🔋 78% │
+│                                      │
+│ Conductivity                         │
+│ 4.82 mS/cm                            │
+│                                      │
+│ Ultrasonic TOF                       │
+│ 12.482 us                             │
+│                                      │
+│ Distance                             │
+│ 18.73 mm                              │
+│                                      │
+│ Status: READY                         │
+└──────────────────────────────────────┘
+```
+
+The display must receive measurement data from the application layer.
+
+It must not directly access sensor drivers.
+
+---
+
+# 9. Physical Controls
+
+The analyzer uses physical controls instead of a touchscreen.
+
+## 9.1 Rotary Encoder
+
+The rotary encoder provides:
+
+- Menu navigation.
+- Value adjustment.
+- Selection.
+- Push-to-select.
+
+### Signals
+
+```text
+Encoder A
+Encoder B
+Encoder Push
+GND
+```
+
+GPIO inputs should use suitable pull-up or pull-down configuration.
+
+---
+
+## 9.2 START Button
+
+The START button begins a measurement cycle.
+
+```text
+START
+  │
+  ▼
+Measurement Manager
+  │
+  ▼
+Measurement Sequence
+```
+
+---
+
+## 9.3 BACK Button
+
+The BACK button:
+
+- Returns to the previous screen.
+- Cancels an operation where supported.
+- Exits configuration screens.
+
+---
+
+# 10. Real-Time Clock
+
+## 10.1 DS3231
+
+The DS3231 provides timestamps without requiring an internet connection.
+
+### Interface
+
+```text
+ESP32-S3
+   │
+   ├── SDA
+   ├── SCL
+   └── GND
+        │
+        ▼
+     DS3231
+```
+
+I2C is acceptable here because the RTC is an internal board-level device.
+
+The design does not use I2C for external sensor communication.
+
+### Purpose
+
+The RTC is used for:
+
+- Measurement timestamps.
+- CSV filenames.
+- Event logs.
+- System status.
+- Measurement history.
+
+---
+
+# 11. MicroSD Storage
+
+## 11.1 MicroSD Module
+
+The system uses MicroSD storage through SPI.
+
+### Purpose
+
+- Measurement logging.
+- CSV files.
+- System logs.
+- Configuration backups where required.
+
+### Example structure
+
+```text
+/ECTOF/
+    config/
+    data/
+        2026/
+            10/
+                08.csv
+    logs/
+```
+
+### Measurement format
+
+```csv
+timestamp,conductivity,tof_us,distance_mm,status
+2026-10-08T15:32:10,4820,12.482,18.73,VALID
+```
+
+The SD card must be removable.
+
+SD failure must not cause the measurement application to crash.
+
+---
+
+# 12. Battery
+
+## 12.1 Battery Type
+
+V0.1 uses a rechargeable single-cell lithium battery.
+
+Target capacity:
+
+```text
+3.7 V
+~5000 mAh
+```
+
+The actual battery selection must include suitable protection.
+
+---
+
+## 12.2 Battery Protection
+
+The battery system should include:
+
+- Overcharge protection.
+- Over-discharge protection.
+- Over-current protection.
+- Short-circuit protection.
+
+A protected battery or suitable protection circuit should be used.
+
+---
+
+# 13. USB-C Charging
+
+The analyzer requires an integrated USB-C charging solution for the single-cell battery.
+
+### Basic architecture
 
 ```text
 USB-C
-   │
-   ▼
-1S Li-ion Charger
-   │
-   ▼
+  │
+  ▼
+Li-ion Charger
+  │
+  ▼
 3.7 V Battery
-   │
-   ▼
-System Power
+  │
+  ▼
+Power Distribution
 ```
 
-The charger shall provide:
+Charging circuitry must be suitable for the selected battery chemistry and capacity.
 
-- Overcharge protection
-- Over-discharge protection
-- Over-current protection
-- Short-circuit protection where supported
-
-The charger must be compatible with the selected battery chemistry.
+The enclosure should expose the USB-C connector.
 
 ---
 
-# 10. Battery Protection
+# 14. Power Rails
 
-The system shall include protection against:
-
-- Overcharge
-- Over-discharge
-- Short circuit
-- Excessive current
-
-Battery protection should preferably be implemented by a dedicated protection circuit or protected battery.
-
-The ESP32 firmware shall not be responsible for primary battery safety.
-
----
-
-# 11. Battery Monitoring
-
-Battery monitoring shall be implemented separately from the main power path.
-
-Possible V0.1 implementation:
+The system requires multiple voltage rails.
 
 ```text
-Battery
-   │
-   ▼
-Voltage Divider
-   │
-   ▼
-ESP32-S3 ADC
+3.7 V Battery
+      │
+      ├──────────────► 3.7 V Battery Rail
+      │
+      ├── Boost ─────► 12 V Rail
+      │                  │
+      │                  └── SEN0707
+      │
+      └── Regulator ──► 5 V Rail
+                         │
+                         ├── HC-SR04
+                         └── TFT if required
+                         
+3.3 V Regulator
+      │
+      ├── ESP32-S3
+      ├── MAX3485
+      ├── DS3231
+      ├── MicroSD logic
+      └── Other 3.3 V peripherals
 ```
 
-A dedicated fuel gauge may be added later.
-
-Battery percentage shall be treated as an estimate when calculated only from battery voltage.
+The actual regulator topology must be finalized based on the selected display, SD module, and power requirements.
 
 ---
 
-# 12. 12 V Boost Converter
+# 15. SEN0707 12 V Supply
 
-The SEN0707 requires a higher voltage supply than the battery provides.
+The SEN0707 requires 10 to 30 V DC.
 
-Architecture:
+A dedicated boost converter is therefore required.
+
+### Architecture
 
 ```text
 3.7 V Battery
@@ -348,1188 +554,615 @@ Architecture:
 SEN0707
 ```
 
-The converter shall:
+The boost converter must provide enough output power for the SEN0707 and maintain a stable voltage during measurement.
 
-- Accept the battery voltage range.
-- Produce a stable 12 V output.
-- Provide sufficient current.
-- Include appropriate input/output capacitors.
-- Be physically separated from sensitive signal wiring where practical.
-
-The converter shall be enabled only when required if power testing shows that this significantly improves battery life.
+The boost converter should be physically separated from sensitive measurement wiring where practical.
 
 ---
 
-# 13. 5 V Converter
+# 16. Battery Voltage Measurement
 
-A separate 5 V regulator or boost converter shall be used where required.
+V0.1 requires a simple battery indicator.
+
+It does not require battery current measurement.
+
+### Architecture
 
 ```text
 3.7 V Battery
       │
       ▼
-5 V Converter
-      │
-      ├── TFT
-      └── HC-SR04
-```
-
-The actual TFT supply voltage must be confirmed before final wiring.
-
----
-
-# 14. Main Power Switch
-
-A physical power switch shall be installed on the enclosure.
-
-Recommended location:
-
-```text
-Rear / Side Panel
-```
-
-The switch shall disconnect system power from the battery.
-
-The charging input should remain available according to the selected charger/power-path design.
-
----
-
-# 15. Power Protection
-
-The main battery output should include a fuse or resettable polyfuse.
-
-Recommended architecture:
-
-```text
-Battery
-   │
-   ▼
-Fuse / Polyfuse
-   │
-   ▼
-Main Switch
-   │
-   ▼
-Power Distribution
-```
-
-The fuse rating shall be selected after measuring the expected maximum system current.
-
----
-
-# 16. Conductivity Sensor
-
-Selected sensor:
-
-**DFRobot SEN0707**
-
-The sensor shall be externally mounted and removable.
-
-The sensor connection shall include:
-
-- Power
-- RS485 A
-- RS485 B
-- Ground
-
-The sensor shall receive power from the dedicated 12 V rail.
-
----
-
-# 17. EC Sensor Connection
-
-Architecture:
-
-```text
-             SEN0707
-          ┌───────────┐
-          │           │
-  +12 V ──┤ Power     │
-   GND ───┤ Ground    │
-    A ────┤ RS485 A   │
-    B ────┤ RS485 B   │
-          └───────────┘
-                │
-                │
-             M12 Cable
-                │
-                ▼
-          Panel Connector
-                │
-                ▼
-             MAX3485
-                │
-                ▼
-            ESP32-S3
-```
-
-The final M12 pin assignment shall be verified against the selected connector and SEN0707 cable configuration before assembly.
-
----
-
-# 18. RS485 Interface
-
-The MAX3485 shall provide the physical RS485 interface.
-
-```text
-ESP32-S3
-    │
- UART
-    │
-    ▼
-MAX3485
-    │
-    ├── RO → ESP32 RX
-    ├── DI ← ESP32 TX
-    ├── DE ← ESP32 GPIO
-    └── RE ← ESP32 GPIO
-    │
-    ├── A
-    └── B
-```
-
-Depending on the selected module, DE and RE may be combined.
-
-The final circuit shall follow the actual MAX3485 module design.
-
----
-
-# 19. RS485 Wiring
-
-Use twisted-pair wiring for:
-
-```text
-RS485 A
-RS485 B
-```
-
-Recommended:
-
-```text
-Pair 1:
-A + B
-```
-
-Power and ground should use separate conductors.
-
-For longer cables, shielded cable is preferred.
-
----
-
-# 20. RS485 Termination
-
-A 120 Ω termination resistor may be required depending on cable length and topology.
-
-For a single short sensor connection, termination requirements should be evaluated during testing.
-
-The prototype should provide an accessible location for adding or removing termination.
-
----
-
-# 21. Ultrasonic Sensor
-
-Selected V0.1 sensor:
-
-**HC-SR04**
-
-Connection:
-
-```text
-HC-SR04
-├── VCC
-├── GND
-├── TRIG
-└── ECHO
-```
-
-The sensor shall be connected through a removable connector.
-
----
-
-# 22. HC-SR04 Voltage Protection
-
-The HC-SR04 ECHO signal may be 5 V.
-
-The ESP32-S3 GPIO shall not receive the raw signal.
-
-Use:
-
-```text
-HC-SR04 ECHO
-      │
-      ▼
 Voltage Divider
       │
       ▼
-ESP32-S3 ECHO GPIO
+ESP32-S3 ADC
+      │
+      ▼
+Battery Voltage
+      │
+      ▼
+Estimated Battery %
+      │
+      ▼
+TFT / Web UI
 ```
 
-Example divider concept:
+The voltage divider must scale the maximum battery voltage to a safe ESP32-S3 ADC input range.
 
-```text
-ECHO
-  │
-  R1
-  │
-  ├────────── ESP32 GPIO
-  │
-  R2
-  │
- GND
-```
-
-The resistor values shall be selected to keep the GPIO input safely within the ESP32-S3 voltage range.
-
-The exact values will be finalized during schematic implementation.
+The ADC input must include appropriate protection.
 
 ---
 
-# 23. Ultrasonic Trigger
+# 17. Battery Indicator
 
-The ESP32-S3 shall drive the HC-SR04 TRIG input.
+The battery indicator is intentionally simple.
 
-The trigger output must remain within the HC-SR04 input voltage requirements.
+It is an estimated battery level, not a precision fuel gauge.
 
-Architecture:
+### Example levels
 
-```text
-ESP32 GPIO
-    │
-    ▼
-HC-SR04 TRIG
-```
+| Battery Voltage | Display |
+|---:|---:|
+| ≥ 4.10 V | 100% |
+| 4.00–4.09 V | 80% |
+| 3.90–3.99 V | 60% |
+| 3.80–3.89 V | 50% |
+| 3.70–3.79 V | 35% |
+| 3.60–3.69 V | 20% |
+| 3.50–3.59 V | 10% |
+| ≤ 3.40 V | Critical |
 
-A small series resistor may be added for signal integrity if required.
+The actual percentage mapping can be refined during battery testing.
 
----
+### Low-battery behavior
 
-# 24. Ultrasonic Connector
+The system should:
 
-The HC-SR04 shall use a removable connector.
-
-Minimum signals:
-
-```text
-VCC
-GND
-TRIG
-ECHO
-```
-
-The connector should prevent accidental reversal where practical.
+- Display a low-battery warning.
+- Display the battery percentage.
+- Prevent measurement when battery voltage is below the configured critical threshold if required.
+- Continue safe shutdown behavior when the battery is critically low.
 
 ---
 
-# 25. Display
+# 18. No Current or Power Measurement
 
-Selected display:
+V0.1 does not include:
 
-```text
-4-inch
-480 × 320
-ST7796
-SPI
-```
+- Battery current measurement.
+- Battery power measurement.
+- INA226.
+- Dedicated power monitor.
+- Fuel gauge.
+- Detailed battery power analytics.
 
-The display shall be mounted on the front panel.
-
-The display connection should be removable.
+The system only measures battery voltage for a simple battery indicator.
 
 ---
 
-# 26. TFT Interface
+# 19. Grounding and Noise Control
 
-Typical signals:
+The EC sensor and RS485 interface can be affected by electrical noise.
 
-```text
-SCLK
-MOSI
-MISO
-CS
-DC
-RESET
-BACKLIGHT
-```
+The hardware should therefore separate noisy power paths from measurement communication.
 
-The actual signals required depend on the selected ST7796 module.
+### Guidelines
 
-The display module's schematic shall be checked before final wiring.
-
----
-
-# 27. Display Power
-
-The TFT shall be powered according to the selected module's requirements.
-
-The display supply must not be assumed solely from the ST7796 controller voltage.
-
-The final module must be verified for:
-
-- Logic voltage
-- Backlight voltage
-- Input voltage
-- Current consumption
-
----
-
-# 28. MicroSD
-
-The system shall use a MicroSD card for measurement storage.
-
-Connection:
-
-```text
-ESP32-S3
-   │
-   │ SPI
-   ├── SCLK
-   ├── MOSI
-   ├── MISO
-   └── CS
-        │
-        ▼
-    MicroSD Module
-        │
-        ▼
-      SD Card
-```
-
-The SD card should be removable.
-
----
-
-# 29. SD Card Requirements
-
-Recommended initial card:
-
-```text
-16 GB or 32 GB
-```
-
-A reputable card should be used for testing.
-
-The firmware shall format and use a standard filesystem supported by ESP-IDF.
-
-The card should be formatted before first use.
-
----
-
-# 30. RTC
-
-Selected RTC:
-
-**DS3231**
-
-Connection:
-
-```text
-ESP32-S3
-    │
-    │ I2C
-    ├── SDA
-    └── SCL
-         │
-         ▼
-       DS3231
-```
-
-The RTC shall have its backup battery installed.
-
----
-
-# 31. User Controls
-
-The front panel shall contain:
-
-```text
-┌──────────────────────────────┐
-│                              │
-│        TFT DISPLAY           │
-│                              │
-│                              │
-└──────────────────────────────┘
-
-       [ ROTARY ENCODER ]
-
-    [ START ]       [ BACK ]
-```
-
-The physical layout may be changed after enclosure prototyping.
-
----
-
-# 32. Rotary Encoder
-
-The encoder shall provide:
-
-```text
-A
-B
-SW
-VCC
-GND
-```
-
-GPIO inputs shall use internal or external pull-up resistors as appropriate.
-
-Software debounce shall be implemented.
-
----
-
-# 33. START Button
-
-The START button shall use a digital GPIO.
-
-Recommended connection:
-
-```text
-GPIO
- │
- ├── Internal Pull-up
- │
- └── Button
-       │
-      GND
-```
-
-Pressed state:
-
-```text
-LOW
-```
-
-Released state:
-
-```text
-HIGH
-```
-
----
-
-# 34. BACK Button
-
-The BACK button shall use the same basic electrical arrangement.
-
-```text
-GPIO
- │
- ├── Internal Pull-up
- │
- └── Button
-       │
-      GND
-```
-
----
-
-# 35. GPIO Allocation
-
-The following is the proposed V0.1 GPIO map.
-
-| Function | GPIO | Interface |
-|---|---:|---|
-| EC UART TX | GPIO17 | UART |
-| EC UART RX | GPIO18 | UART |
-| RS485 DE/RE | GPIO16 | GPIO |
-| Ultrasonic TRIG | GPIO4 | GPIO |
-| Ultrasonic ECHO | GPIO5 | GPIO/RMT |
-| TFT SCLK | GPIO12 | SPI |
-| TFT MOSI | GPIO11 | SPI |
-| TFT MISO | GPIO13 | SPI |
-| TFT CS | GPIO10 | GPIO |
-| TFT DC | GPIO9 | GPIO |
-| TFT RESET | GPIO8 | GPIO |
-| TFT Backlight | GPIO7 | GPIO/PWM |
-| SD SCLK | GPIO36 | SPI |
-| SD MOSI | GPIO35 | SPI |
-| SD MISO | GPIO37 | SPI |
-| SD CS | GPIO34 | GPIO |
-| RTC SDA | GPIO6 | I2C |
-| RTC SCL | GPIO15 | I2C |
-| Encoder A | GPIO1 | GPIO |
-| Encoder B | GPIO2 | GPIO |
-| Encoder SW | GPIO3 | GPIO |
-| START | GPIO38 | GPIO |
-| BACK | GPIO39 | GPIO |
-| Battery ADC | GPIO14 | ADC |
-
-This GPIO map is a starting allocation and must be validated against the actual ESP32-S3-DevKitC-1-N8R8 pin availability and the selected display/module wiring before hardware assembly.
-
-Reserved or boot-sensitive pins shall be avoided where practical.
-
----
-
-# 36. GPIO Design Rules
-
-The following rules apply:
-
-- Do not connect 5 V signals directly to ESP32-S3 GPIOs.
-- Avoid boot-strapping pins where possible.
-- Avoid using flash/PSRAM-connected pins.
-- Keep high-speed signals short.
-- Use pull-ups or pull-downs where required.
-- Add series resistors if signal integrity requires them.
-- Keep sensor signals away from switching converter nodes.
-
----
-
-# 37. Proposed Interface Summary
-
-```text
-ESP32-S3
-│
-├── UART
-│    └── MAX3485 → SEN0707
-│
-├── SPI Bus 1
-│    └── ST7796 TFT
-│
-├── SPI Bus 2
-│    └── MicroSD
-│
-├── I2C
-│    └── DS3231
-│
-├── GPIO
-│    ├── HC-SR04 TRIG
-│    ├── HC-SR04 ECHO
-│    ├── Encoder A
-│    ├── Encoder B
-│    ├── Encoder SW
-│    ├── START
-│    └── BACK
-│
-└── ADC
-     └── Battery Voltage
-```
-
----
-
-# 38. Recommended SPI Strategy
-
-The prototype should preferably use separate SPI hosts for:
-
-```text
-SPI Display
-SPI MicroSD
-```
-
-This reduces:
-
-- Bus contention
-- Driver complexity
-- Display/SD timing conflicts
-
-If ESP32-S3 SPI resources or GPIO routing make this impractical, both devices may share a bus with independent CS lines.
-
----
-
-# 39. Grounding Strategy
-
-The system shall use a common system ground unless a future design introduces galvanic isolation.
-
-Ground paths should be arranged so that high-current converter return currents do not unnecessarily pass through sensitive signal paths.
-
-Conceptually:
-
-```text
-Battery GND
-    │
-    ├── Power Converter GND
-    │
-    ├── ESP32 GND
-    │
-    ├── RS485 GND
-    │
-    ├── TFT GND
-    │
-    ├── SD GND
-    │
-    └── Sensor GND
-```
-
-The physical wiring should use a controlled star or low-impedance distribution approach where practical.
-
----
-
-# 40. Noise Reduction
-
-The following should be implemented:
-
-- 100 nF local bypass capacitors near digital modules where required.
-- Bulk capacitance near DC-DC converters.
-- Short power paths.
-- Twisted RS485 pair.
-- Physical separation between boost converter and sensor wiring.
-- Separate routing for switching power and measurement signals.
-- Ferrite filtering if testing shows significant noise.
-- Shielding for long external sensor cables where practical.
-
----
-
-# 41. Decoupling
-
-Each major module should have appropriate local decoupling.
-
-Minimum concept:
-
-```text
-Power Rail
-    │
-    ├── Bulk Capacitor
-    │
-    └── 100 nF Ceramic
-             │
-           Module
-```
-
-Actual capacitor values shall follow the module and regulator requirements.
-
----
-
-# 42. Test Points
-
-The prototype wiring should expose test points for:
-
-```text
-TP1  Battery Voltage
-TP2  5 V Rail
-TP3  12 V Rail
-TP4  3.3 V Logic
-TP5  RS485 A
-TP6  RS485 B
-TP7  Ultrasonic TRIG
-TP8  Ultrasonic ECHO
-TP9  GND
-```
-
-These test points will simplify debugging.
-
----
-
-# 43. Connector Strategy
-
-Recommended connector groups:
-
-| Connection | Connector |
-|---|---|
-| EC Sensor | M12 |
-| Ultrasonic | JST or locking 4-pin |
-| Battery | JST |
-| TFT | Locking header/JST |
-| SD | Module/socket |
-| RTC | JST/header |
-| Buttons | JST/header |
-| USB-C | Panel-mounted or board connector |
-
-External connectors should be keyed or positioned to reduce incorrect installation.
-
----
-
-# 44. EC M12 Connector
-
-The M12 connector shall be mounted on the enclosure.
-
-The connector must be compatible with the SEN0707 cable.
-
-The exact pinout must be confirmed before final assembly.
-
-Do not assume the M12 pin numbering from a generic connector is identical to the sensor cable.
-
----
-
-# 45. Enclosure Layout
-
-Initial enclosure concept:
-
-```text
-FRONT
-
-┌────────────────────────────────────────┐
-│                                        │
-│             4" TFT DISPLAY             │
-│                                        │
-│                                        │
-├────────────────────────────────────────┤
-│                                        │
-│              ROTARY                     │
-│              ENCODER                    │
-│                                        │
-│       START              BACK           │
-│                                        │
-└────────────────────────────────────────┘
-```
-
-Rear/side:
-
-```text
-┌──────────────────────────────┐
-│ USB-C                        │
-│                              │
-│ POWER SWITCH                 │
-│                              │
-│ EC M12                       │
-│                              │
-│ ULTRASONIC CONNECTOR         │
-└──────────────────────────────┘
-```
-
----
-
-# 46. Internal Layout
-
-Recommended internal arrangement:
-
-```text
-┌───────────────────────────────────────┐
-│                                       │
-│              TFT BACK                 │
-│                                       │
-├───────────────────────────────────────┤
-│                                       │
-│ ESP32-S3              SD Module       │
-│                                       │
-│ MAX3485               DS3231          │
-│                                       │
-├───────────────────────────────────────┤
-│                                       │
-│ Power Converters      Battery         │
-│                                       │
-└───────────────────────────────────────┘
-```
-
-The boost converter should be kept away from the RS485 and ultrasonic signal paths.
-
----
-
-# 47. Thermal Considerations
-
-The following components may generate heat:
-
-- 12 V boost converter
-- 5 V converter
-- ESP32-S3
-- TFT backlight regulator
-- Battery during charging
-
-The enclosure should provide sufficient airflow or thermal conduction.
-
-The battery should not be positioned directly against a hot converter.
-
----
-
-# 48. Battery Placement
-
-The battery should be:
-
-- Mechanically secured
-- Protected from sharp edges
-- Protected from excessive heat
-- Away from high-temperature components
-- Replaceable during prototype development
-
-The battery shall not be allowed to move freely inside the enclosure.
-
----
-
-# 49. Wiring Requirements
-
-Internal wiring shall be organized by function.
-
-Recommended separation:
-
-```text
-POWER
-├── Battery
-├── 12 V
-└── 5 V
-
-DIGITAL
-├── SPI
-├── I2C
-└── GPIO
-
-SENSOR
-├── RS485
-└── Ultrasonic
-```
-
-High-current wires should be kept short.
-
-External sensor cables should have strain relief.
-
----
-
-# 50. Hardware Failure Conditions
-
-The hardware design shall account for:
-
-- Sensor disconnect
-- Shorted sensor cable
-- Reversed connector where possible
-- SD card removal
-- Battery undervoltage
-- Converter failure
-- RS485 wiring fault
-- Ultrasonic connector disconnect
-
-The firmware shall detect failures where electrical detection is possible.
-
----
-
-# 51. Bill of Materials
-
-Initial prototype BOM:
-
-| # | Component | Qty | Purpose |
-|---:|---|---:|---|
-| 1 | ESP32-S3-DevKitC-1-N8R8 | 1 | Main controller |
-| 2 | DFRobot SEN0707 | 1 | EC measurement |
-| 3 | MAX3485 RS485 module | 1 | RS485 interface |
-| 4 | HC-SR04 | 1 | Ultrasonic prototype |
-| 5 | 4" 480×320 ST7796 SPI TFT | 1 | Display |
-| 6 | MicroSD SPI module | 1 | SD interface |
-| 7 | 16/32 GB MicroSD card | 1 | Data storage |
-| 8 | DS3231 RTC module | 1 | RTC |
-| 9 | Rotary encoder | 1 | Navigation |
-| 10 | START push button | 1 | Measurement control |
-| 11 | BACK push button | 1 | Navigation |
-| 12 | 3.7 V 5000 mAh battery | 1 | Main power |
-| 13 | USB-C 1S Li-ion charger | 1 | Battery charging |
-| 14 | 3.7 V → 12 V boost converter | 1 | SEN0707 supply |
-| 15 | 3.7 V → 5 V converter | 1 | Peripheral supply |
-| 16 | Main power switch | 1 | Power control |
-| 17 | Fuse/polyfuse | 1 | Protection |
-| 18 | M12 connector | 1 set | EC sensor |
-| 19 | 4-pin removable connector | 1 set | Ultrasonic |
-| 20 | JST connectors | Several | Internal wiring |
-| 21 | Resistors | Several | ECHO level shifting |
-| 22 | Capacitors | Several | Decoupling |
-| 23 | Prototype wiring | As required | Assembly |
-| 24 | Enclosure | 1 | Mechanical housing |
-
----
-
-# 52. Prototype Assembly Strategy
-
-The prototype should be assembled in stages.
-
-## Stage 1
-
-Controller only:
-
-```text
-ESP32-S3
-```
-
-Verify:
-
-- Programming
-- Boot
-- Serial output
-- Wi-Fi
-
-## Stage 2
-
-Add display.
-
-```text
-ESP32-S3
-    ↓
-TFT
-```
-
-Verify UI.
-
-## Stage 3
-
-Add RTC.
-
-```text
-ESP32-S3
-    ↓
-DS3231
-```
-
-Verify timestamp.
-
-## Stage 4
-
-Add SD.
-
-Verify file creation and CSV logging.
-
-## Stage 5
-
-Add RS485.
-
-```text
-ESP32-S3
-    ↓
-MAX3485
-    ↓
-SEN0707
-```
-
-Verify conductivity.
-
-## Stage 6
-
-Add ultrasonic.
-
-```text
-ESP32-S3
-    ↓
-Level Shifter
-    ↓
-HC-SR04
-```
-
-Verify TOF.
-
-## Stage 7
-
-Add battery system.
-
-Verify:
-
-- Startup
-- Runtime
-- Charging
-- Current consumption
-
-## Stage 8
-
-Integrate the complete system.
-
----
-
-# 53. Hardware Bring-Up Order
-
-Recommended order:
-
-```text
-ESP32-S3
-   ↓
-3.3 V
-   ↓
-TFT
-   ↓
-RTC
-   ↓
-SD
-   ↓
-RS485
-   ↓
-SEN0707
-   ↓
-HC-SR04
-   ↓
-Buttons
-   ↓
-Battery
-   ↓
-Power converters
-   ↓
-Complete system
-```
-
-This prevents multiple unknown variables from being introduced at the same time.
-
----
-
-# 54. Prototype Wiring Rule
-
-Do not build the complete system on a breadboard if the sensor cables and power converters introduce significant noise.
-
-For early development:
-
-- Breadboard digital logic where convenient.
-- Use proper screw terminals/connectors for power.
-- Use short wires for SPI.
+- Keep boost converter wiring short.
+- Keep switching power wiring away from RS485 A/B.
 - Use twisted pair for RS485.
-- Use removable connectors for external sensors.
-- Move to perfboard or a mounting plate once the design is stable.
+- Keep sensor cables away from high-current battery wiring.
+- Use a common ground reference where required by the interface.
+- Avoid unnecessary ground loops.
+- Place decoupling capacitors near active devices.
+- Use bulk capacitance near voltage regulators.
+- Keep digital switching signals away from sensitive sensor wiring.
+- Use shielded sensor cables when practical.
 
 ---
 
-# 55. Hardware Validation
+# 20. Connector Strategy
 
-Before proceeding to enclosure integration, verify:
+External sensors must be removable.
 
-### Power
+## 20.1 EC Sensor
 
-- Battery voltage
-- 5 V rail
-- 12 V rail
-- Logic voltage
-- Converter temperature
-- Current consumption
+Use a locking industrial connector where practical.
 
-### EC
+Target:
 
-- RS485 communication
-- Modbus response
-- Sensor reading
-- Sensor disconnect
+```text
+M12 connector
+```
+
+Signals:
+
+- Power.
+- GND.
+- RS485 A.
+- RS485 B.
+
+---
+
+## 20.2 Ultrasonic Sensor
+
+Use a removable connector.
+
+Signals:
+
+- VCC.
+- GND.
+- TRIG.
+- ECHO.
+
+---
+
+## 20.3 Display
+
+Use a removable internal connector.
+
+Signals include:
+
+- SPI.
+- Chip select.
+- DC.
+- Reset.
+- Backlight control if required.
+- Power.
+- Ground.
+
+---
+
+# 21. GPIO Protection
+
+ESP32-S3 GPIOs must be protected from external voltage exposure.
+
+The design should include:
+
+- Voltage dividers where required.
+- Level shifters where required.
+- Series resistors where useful.
+- Pull-up or pull-down resistors.
+- Proper connector pinout.
+- ESD protection for externally accessible connections where practical.
+
+The HC-SR04 ECHO input is specifically required to have voltage protection.
+
+---
+
+# 22. Suggested Interface Allocation
+
+The final GPIO numbers must be validated against the selected ESP32-S3 DevKitC-1-N8R8 board and peripherals.
+
+A proposed allocation is:
+
+| Function | Interface |
+|---|---|
+| SEN0707 TX/RX | UART |
+| RS485 DE/RE | GPIO |
+| HC-SR04 TRIG | GPIO |
+| HC-SR04 ECHO | GPIO |
+| TFT | SPI |
+| MicroSD | SPI |
+| DS3231 | I2C |
+| Rotary A | GPIO |
+| Rotary B | GPIO |
+| Rotary Push | GPIO |
+| START | GPIO |
+| BACK | GPIO |
+| Battery ADC | ADC |
+| Wi-Fi | Internal |
+| USB | Native USB |
+
+SPI devices may share the SPI bus when electrical and software requirements permit.
+
+Each SPI device must have its own chip-select signal.
+
+---
+
+# 23. Enclosure
+
+The V0.1 enclosure should provide:
+
+- Protection for the electronics.
+- Access to the TFT.
+- Access to rotary encoder.
+- START button.
+- BACK button.
+- USB-C charging port.
+- Power switch.
+- EC sensor connector.
+- Ultrasonic sensor connector.
+- SD card access where practical.
+- Ventilation for heat-producing components if required.
+
+The enclosure should keep the battery isolated from heat-producing components.
+
+The SEN0707 connector should be positioned so the external sensor cable does not interfere with user controls.
+
+---
+
+# 24. Physical Layout
+
+A recommended layout is:
+
+```text
+┌─────────────────────────────────────────┐
+│                                         │
+│          4" TFT DISPLAY                 │
+│                                         │
+│                                         │
+├─────────────────────────────────────────┤
+│  BACK       ENCODER        START        │
+│                                         │
+├─────────────────────────────────────────┤
+│                                         │
+│        MAIN ELECTRONICS                 │
+│                                         │
+│  ESP32-S3                                │
+│  RS485        SD        RTC              │
+│                                         │
+│        POWER / REGULATORS                │
+│                                         │
+│        BATTERY                           │
+│                                         │
+├─────────────────────────────────────────┤
+│ USB-C     POWER       EC      ULTRASONIC│
+└─────────────────────────────────────────┘
+```
+
+The exact enclosure dimensions will be determined after selecting the final modules and battery.
+
+---
+
+# 25. Power and Signal Separation
+
+The physical layout should separate:
+
+### Noisy section
+
+- Boost converter.
+- Switching regulators.
+- Battery power wiring.
+- Backlight power.
+
+### Measurement/control section
+
+- ESP32-S3.
+- MAX3485.
+- RTC.
+- Sensor connectors.
+- ADC battery input.
+
+RS485 wiring should be routed away from the boost converter and high-current power paths.
+
+---
+
+# 26. Thermal Considerations
+
+Potential heat sources include:
+
+- 12 V boost converter.
+- 5 V regulator.
+- 3.3 V regulator.
+- TFT backlight.
+- ESP32-S3 during Wi-Fi operation.
+
+The enclosure must allow adequate thermal dissipation.
+
+The battery should not be placed directly against high-temperature components.
+
+---
+
+# 27. Hardware Startup Sequence
+
+At power-up:
+
+```text
+Power ON
+   │
+   ▼
+ESP32-S3 Boot
+   │
+   ▼
+Initialize GPIO
+   │
+   ▼
+Initialize Power ADC
+   │
+   ▼
+Initialize RTC
+   │
+   ▼
+Initialize SPI
+   │
+   ├── TFT
+   └── MicroSD
+   │
+   ▼
+Initialize UART / RS485
+   │
+   ▼
+Initialize EC Sensor
+   │
+   ▼
+Initialize TOF
+   │
+   ▼
+Initialize User Input
+   │
+   ▼
+Start Wi-Fi
+   │
+   ▼
+System READY
+```
+
+A failure in one non-critical peripheral must not prevent the rest of the system from starting unless the peripheral is required for safe operation.
+
+---
+
+# 28. Measurement Hardware Sequence
+
+A measurement cycle follows:
+
+```text
+START
+  │
+  ▼
+Trigger Ultrasonic Sensor
+  │
+  ▼
+Measure Echo Time
+  │
+  ▼
+Calculate TOF
+  │
+  ▼
+Calculate Distance
+  │
+  ▼
+Read SEN0707
+  │
+  ▼
+Validate Measurement
+  │
+  ▼
+Display Result
+  │
+  ▼
+Log Result
+  │
+  ▼
+READY
+```
+
+The exact sequence may be adjusted after prototype testing.
+
+---
+
+# 29. Hardware Fault Conditions
+
+The firmware must detect hardware failures where possible.
+
+### EC sensor
+
+- Sensor disconnected.
+- RS485 timeout.
+- CRC failure.
+- Invalid Modbus response.
+- UART error.
+- Invalid conductivity value.
 
 ### Ultrasonic
 
-- Trigger
-- Echo level
-- TOF
-- Distance
-- Timeout
+- No echo.
+- Timeout.
+- Out-of-range TOF.
+- Invalid distance.
+- Sensor disconnected.
 
-### Display
+### SD card
 
-- Initialization
-- Full-screen rendering
-- Backlight
-- Touch not required
-
-### SD
-
-- Initialization
-- File write
-- File read
-- Card removal
+- Card not detected.
+- Mount failure.
+- File creation failure.
+- Write failure.
 
 ### RTC
 
-- Read
-- Write
-- Battery backup
+- RTC not detected.
+- Invalid time.
+- RTC communication failure.
 
-### Controls
+### Display
 
-- Encoder
-- Encoder button
-- START
-- BACK
+- Initialization failure.
+- SPI communication failure.
+
+### Battery
+
+- Low voltage.
+- Critical voltage.
+- ADC failure.
 
 ---
 
-# 56. Hardware Design Risks
+# 30. Hardware Safety
 
-| Risk | Impact | Mitigation |
+The prototype must include:
+
+- Battery protection.
+- Proper charger.
+- Fuse or resettable fuse where appropriate.
+- Protected external connectors.
+- Proper insulation.
+- Correct polarity protection where appropriate.
+- Secure battery mounting.
+- No exposed battery terminals.
+- No exposed high-voltage circuitry.
+
+The 12 V SEN0707 supply is low voltage but must still be properly insulated and protected.
+
+---
+
+# 31. V0.1 Hardware BOM
+
+| Category | Component | Purpose |
 |---|---|---|
-| HC-SR04 unsuitable for final measurement | High | Treat as V0.1 feasibility hardware |
-| 5 V ECHO damages ESP32 | High | Use level shifting |
-| Boost converter introduces noise | High | Physical separation and filtering |
-| Battery runtime too short | Medium | Measure actual current and optimize |
-| SD bus conflicts with TFT | Medium | Prefer separate SPI hosts |
-| RS485 noise | Medium | Twisted pair and proper grounding |
-| Incorrect M12 wiring | High | Verify SEN0707 cable pinout |
-| TFT voltage mismatch | High | Verify selected module before connection |
-| Converter overheating | Medium | Measure thermal performance |
-| Battery protection inadequate | High | Use protected battery/charger |
+| MCU | ESP32-S3-DevKitC-1-N8R8 | Main controller |
+| EC | DFRobot SEN0707 | Conductivity measurement |
+| RS485 | MAX3485 module/transceiver | SEN0707 communication |
+| TOF | HC-SR04 | Ultrasonic prototype |
+| Display | 4" 480x320 ST7796 TFT | Local UI |
+| Storage | MicroSD SPI module | Data logging |
+| Storage | 16/32 GB MicroSD | Measurement storage |
+| RTC | DS3231 | Timestamping |
+| Input | Rotary encoder | Navigation |
+| Input | START button | Measurement trigger |
+| Input | BACK button | Navigation |
+| Battery | 3.7 V ~5000 mAh Li-ion | Portable power |
+| Charger | USB-C 1S Li-ion charger | Battery charging |
+| Boost | 3.7 V to 12 V | SEN0707 power |
+| Regulator | 3.7 V to 5 V | 5 V peripherals |
+| ADC | ESP32-S3 internal ADC | Battery voltage |
+| Connector | M12 | EC sensor |
+| Connector | Removable connector | Ultrasonic sensor |
+| Protection | Fuse/polyfuse | Power protection |
+| Enclosure | Custom project enclosure | Mechanical protection |
 
 ---
 
-# 57. Hardware Expansion Points
+# 32. V0.1 Hardware Exclusions
 
-The prototype should leave room for:
+The following are intentionally excluded from the V0.1 hardware:
 
-- Dedicated ultrasonic TX/RX electronics
-- Better ultrasonic transducer
-- Fuel gauge
-- External ADC
-- Additional sensors
-- USB communication
-- Custom PCB
-- Isolated RS485
-- Improved power management
-- Hardware emergency stop if required
-- Additional measurement channels
+- Production-grade ultrasonic transducer.
+- Dedicated ultrasonic receiver amplifier.
+- Precision TOF acquisition hardware.
+- Battery current measurement.
+- Battery power measurement.
+- INA226.
+- Dedicated fuel gauge.
+- Advanced battery monitoring.
+- Touchscreen.
+- Cellular communication.
+- GPS.
+- Cloud connectivity.
+- Industrial EMC certification.
+- Production enclosure certification.
 
-These are not required for V0.1.
+These may be evaluated after the V0.1 prototype validates the measurement concept.
 
 ---
 
-# 58. Final Hardware Architecture
+# 33. Hardware Upgrade Path
 
-The final V0.1 hardware architecture is:
+The hardware must allow future upgrades without requiring a complete redesign.
+
+### Possible V0.2 upgrades
+
+- Laboratory-grade ultrasonic transducer.
+- Dedicated ultrasonic receiver.
+- Higher-precision TOF timing hardware.
+- Improved acoustic coupling.
+- Improved sample fixture.
+- Better EC sample cell.
+- More robust sensor connectors.
+- Improved power management.
+- Larger display.
+- Better enclosure.
+- Additional calibration features.
+
+The ESP32-S3 application architecture should remain unchanged where possible.
+
+---
+
+# 34. Hardware Design Acceptance Criteria
+
+The V0.1 hardware is considered ready for firmware integration when:
+
+- ESP32-S3 boots reliably.
+- TFT operates correctly.
+- Rotary encoder works.
+- START button works.
+- BACK button works.
+- DS3231 provides valid time.
+- MicroSD mounts reliably.
+- SEN0707 communicates through RS485.
+- HC-SR04 produces valid prototype measurements.
+- HC-SR04 ECHO is safely level-shifted.
+- Battery voltage can be measured safely.
+- Battery indicator can be displayed.
+- USB-C charging operates correctly.
+- 12 V SEN0707 supply is stable.
+- All external sensors are removable.
+- Wiring is mechanically secure.
+- No exposed unsafe electrical connections exist.
+- The complete system can operate from the battery.
+
+---
+
+# 35. Final V0.1 Hardware Architecture
+
+The finalized V0.1 hardware is:
 
 ```text
-                           ┌─────────────────┐
-                           │  3.7 V Battery  │
-                           └────────┬────────┘
-                                    │
-                              Fuse / Switch
-                                    │
-                ┌───────────────────┼──────────────────┐
-                │                   │                  │
-                ▼                   ▼                  ▼
-          12 V Boost             5 V Rail          ESP32-S3
-                │                   │                  │
-                ▼              ┌────┴────┐             │
-             SEN0707            │         │             │
-                ▲               ▼         ▼             │
-                │              TFT     HC-SR04          │
-                │                                        │
-                │             ┌──────────────────────────┤
-                │             │                          │
-                │             ▼                          ▼
-                │          MAX3485                    SPI/I2C/GPIO
-                │             ▲                          │
-                └─────────────┘                          │
-                                                       │
-                    ┌──────────────────────────────────┼──────────┐
-                    │                                  │          │
-                    ▼                                  ▼          ▼
-                  DS3231                              SD       Controls
-                   RTC                               Card
+                         ┌───────────────────────┐
+                         │       ESP32-S3        │
+                         │   DevKitC-1-N8R8      │
+                         └───────────┬───────────┘
+                                     │
+        ┌────────────────────────────┼───────────────────────────┐
+        │                            │                           │
+        ▼                            ▼                           ▼
+   UART / RS485                 SPI Display                  GPIO
+        │                            │                           │
+        ▼                            ▼                           ├── START
+   MAX3485                       ST7796 TFT                     ├── BACK
+        │                                                        ├── Encoder
+        ▼                                                        │
+    SEN0707                                                       │
+                                                                  │
+        ┌────────────────────────────┼───────────────────────────┤
+        │                            │                           │
+        ▼                            ▼                           ▼
+    TOF GPIO                     SPI MicroSD                  I2C RTC
+        │                            │                           │
+        ▼                            ▼                           ▼
+    HC-SR04                      Data Storage                  DS3231
+        │
+        │
+   ECHO Level Shift
+        │
+        ▼
+    ESP32 GPIO
+
+
+                    POWER SYSTEM
+
+             ┌───────────────────────┐
+             │   3.7 V Li-ion        │
+             │   ~5000 mAh           │
+             └───────────┬───────────┘
+                         │
+             ┌───────────┼────────────┐
+             │           │            │
+             ▼           ▼            ▼
+          12 V Boost    5 V Rail    3.3 V Rail
+             │           │            │
+             ▼           ▼            ▼
+          SEN0707     TFT / TOF    ESP32 + Logic
+
+                         │
+                         ▼
+                    Voltage Divider
+                         │
+                         ▼
+                    ESP32 ADC
+                         │
+                         ▼
+                  Battery Percentage
 ```
 
----
-
-# 59. Hardware Baseline
-
-The V0.1 hardware baseline is:
-
-| Subsystem | Hardware |
-|---|---|
-| Controller | ESP32-S3-DevKitC-1-N8R8 |
-| EC Sensor | DFRobot SEN0707 |
-| EC Communication | MAX3485 + RS485 |
-| Ultrasonic | HC-SR04 |
-| Display | 4" 480×320 ST7796 SPI TFT |
-| RTC | DS3231 |
-| Storage | MicroSD |
-| User Input | Rotary encoder + START + BACK |
-| Battery | 3.7 V 5000 mAh |
-| Charger | USB-C 1S charger |
-| EC Power | 12 V boost |
-| Peripheral Power | 5 V converter |
-| Main Protection | Fuse/polyfuse |
-| EC Connector | M12 |
-| Ultrasonic Connector | Removable 4-pin |
-| Enclosure | Portable prototype enclosure |
-| PCB | No custom PCB for V0.1 |
-
----
-
-# 60. Hardware Design Status
-
-The hardware design is considered:
-
-**Prototype Ready for Detailed Wiring and Bench Validation**
-
-Before applying power to the complete system, the following must be verified against the actual modules purchased:
-
-1. ESP32-S3 GPIO availability.
-2. ST7796 module voltage requirements.
-3. ST7796 module pinout.
-4. MicroSD module voltage compatibility.
-5. MAX3485 module wiring.
-6. SEN0707 cable/M12 pinout.
-7. HC-SR04 ECHO voltage.
-8. Battery charger/protection design.
-9. 12 V boost converter current capability.
-10. 5 V converter current capability.
-11. Final battery current requirement.
-
-The GPIO table in this document is a proposed allocation, not a final electrical schematic.
-
-The next hardware implementation step should be creating the detailed wiring/schematic from this architecture before physical assembly.
+This architecture is the hardware baseline for EC-TOF Analyzer V0.1.

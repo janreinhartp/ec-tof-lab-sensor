@@ -1,975 +1,925 @@
-# EC-TOF Analyzer
-
+# EC-TOF Analyzer V0.1
 ## System Architecture
 
-Version: 0.1
-Status: Prototype Planning
-Related Documents:
-
-- `01-product-requirements.md`
-- `02-technical-requirements.md`
+**Version:** 0.1  
+**Status:** Prototype  
+**Target Platform:** ESP32-S3  
+**Firmware:** ESP-IDF  
+**Last Updated:** October 2026
 
 ---
 
 # 1. Purpose
 
-This document defines the system architecture of the EC-TOF Analyzer V0.1 prototype.
+This document defines the overall system architecture for the EC-TOF Analyzer V0.1 prototype.
 
-It describes:
+The architecture separates:
 
-- Overall system architecture
-- Hardware architecture
-- Software architecture
+- Hardware
+- Device drivers
 - Sensor interfaces
-- Measurement data flow
-- Measurement sequence
-- Power architecture
-- Communication architecture
-- User interface architecture
-- Data storage architecture
-- Error handling
-- Future expansion strategy
+- Application logic
+- User interfaces
+- Data storage
+- Configuration
+- System services
 
-The architecture is designed to support rapid prototype development while allowing individual hardware components to be replaced in future versions.
+The architecture is designed to support rapid prototyping while keeping the system modular enough for future sensor and hardware upgrades.
 
 ---
 
-# 2. Architecture Principles
+# 2. System Overview
 
-The EC-TOF Analyzer shall follow these principles:
+The EC-TOF Analyzer combines two measurement systems:
 
-1. Use off-the-shelf hardware for V0.1.
-2. Keep external sensors removable.
-3. Separate hardware drivers from application logic.
-4. Avoid unnecessary dependencies.
-5. Keep sensor-specific code isolated.
-6. Use local operation without internet dependency.
-7. Protect the ESP32-S3 from incompatible signal levels.
-8. Treat the HC-SR04 as a replaceable prototype sensor.
-9. Store measurements using an open format.
-10. Design the software so production hardware can replace prototype hardware later.
+1. Electrical conductivity measurement.
+2. Ultrasonic time-of-flight measurement.
 
----
+The ESP32-S3 coordinates both systems and provides:
 
-# 3. High-Level System Architecture
+- Local display
+- Physical controls
+- Data logging
+- Real-time clock
+- Local Wi-Fi interface
+- Battery level indication
+- Configuration
+- Calibration
 
-The complete system can be represented as:
+High-level architecture:
 
 ```text
-                         EC-TOF ANALYZER
-                              │
-                              │
-                       ┌──────▼──────┐
-                       │  ESP32-S3   │
-                       │ Main MCU    │
-                       └──────┬──────┘
-                              │
-          ┌───────────────────┼────────────────────┐
-          │                   │                    │
-          ▼                   ▼                    ▼
-      MEASUREMENT           USER UI             STORAGE
-       SYSTEM                SYSTEM              SYSTEM
-          │                   │                    │
-     ┌────┴────┐         ┌────┴────┐          ┌────┴────┐
-     │         │         │         │          │         │
-     ▼         ▼         ▼         ▼          ▼         ▼
-    EC        TOF       TFT      Controls     SD       RTC
- Sensor     Sensor    Display    Encoder     Card     DS3231
-     │         │
-     │         │
-    RS485     GPIO
-     │         │
-     ▼         ▼
- SEN0707    HC-SR04
-
-
-                      ESP32-S3
-                         │
-                         ▼
-                       Wi-Fi
-                         │
-                         ▼
-                    Local Web UI
+                         ┌─────────────────────────┐
+                         │       USER INTERFACE    │
+                         │                         │
+                         │  TFT Display            │
+                         │  Rotary Encoder         │
+                         │  START / BACK Buttons   │
+                         │  Local Web Interface    │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │   APPLICATION LAYER     │
+                         │                         │
+                         │ Measurement Manager     │
+                         │ Calibration Manager     │
+                         │ Configuration Manager   │
+                         │ System Manager          │
+                         └────────────┬────────────┘
+                                      │
+             ┌────────────────────────┼────────────────────────┐
+             │                        │                        │
+             ▼                        ▼                        ▼
+    ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+    │ SENSOR SERVICES │     │ SYSTEM SERVICES │     │ DATA SERVICES   │
+    │                 │     │                 │     │                 │
+    │ EC Manager      │     │ Power Manager   │     │ Storage Manager │
+    │ TOF Manager     │     │ RTC Manager     │     │ Logging         │
+    │                 │     │ Wi-Fi Manager   │     │ Configuration   │
+    └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+             │                       │                       │
+             └───────────────────────┼───────────────────────┘
+                                     │
+                                     ▼
+                         ┌─────────────────────────┐
+                         │     DRIVER LAYER       │
+                         │                         │
+                         │ UART / RS485            │
+                         │ SPI                     │
+                         │ I2C                     │
+                         │ GPIO                    │
+                         │ ADC                     │
+                         │ Timers                  │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │       HARDWARE         │
+                         └─────────────────────────┘
 ```
 
 ---
 
-# 4. Main Subsystems
+# 3. Hardware Architecture
 
-The system consists of the following major subsystems:
+## 3.1 Main Controller
+
+The ESP32-S3-DevKitC-1-N8R8 is the primary controller.
+
+It is responsible for:
+
+- Sensor communication
+- Measurement processing
+- Display control
+- User input
+- Data logging
+- RTC communication
+- Wi-Fi
+- Battery voltage measurement
+- System state management
+
+---
+
+# 4. Hardware Block Diagram
 
 ```text
-1. Main Controller
-2. Conductivity Measurement
-3. Ultrasonic Measurement
-4. Display
-5. User Input
-6. Real-Time Clock
-7. Data Storage
-8. Wi-Fi and Web Interface
-9. Power Management
-10. Battery
-11. Configuration
-12. Calibration
+                           ┌──────────────────────┐
+                           │   3.7 V Battery      │
+                           │   ~5000 mAh          │
+                           └──────────┬───────────┘
+                                      │
+                                      ▼
+                           ┌──────────────────────┐
+                           │ Power Distribution   │
+                           └───────┬───────┬──────┘
+                                   │       │
+                    ┌──────────────┘       └───────────────┐
+                    ▼                                      ▼
+             ┌──────────────┐                       ┌──────────────┐
+             │ 12 V Boost   │                       │ 5 V Supply  │
+             └──────┬───────┘                       └──────┬───────┘
+                    │                                      │
+                    ▼                                      ├──► TFT
+             ┌──────────────┐                              │
+             │  SEN0707    │                              └──► HC-SR04
+             │ Conductivity│
+             └──────┬───────┘
+                    │ RS485
+                    ▼
+             ┌──────────────┐
+             │   MAX3485    │
+             └──────┬───────┘
+                    │ UART
+                    ▼
+             ┌─────────────────────────────────────────────┐
+             │                 ESP32-S3                    │
+             │                                             │
+             │  UART ─────────► RS485 / EC                 │
+             │  GPIO ─────────► HC-SR04                    │
+             │  SPI ──────────► TFT                        │
+             │  SPI ──────────► MicroSD                    │
+             │  I2C ──────────► DS3231                     │
+             │  ADC ──────────► Battery Voltage            │
+             │  GPIO ─────────► Encoder / Buttons         │
+             │  Wi-Fi ────────► Local Web Interface       │
+             └─────────────────────────────────────────────┘
 ```
 
 ---
 
-# 5. Hardware Architecture
+# 5. Interface Architecture
 
-## 5.1 Main Controller
+The system shall use different physical interfaces based on the requirements of each peripheral.
 
-The ESP32-S3 is the central controller.
+| Component | Interface | ESP32-S3 Connection |
+|---|---|---|
+| SEN0707 | RS485 / Modbus RTU | UART + MAX3485 |
+| HC-SR04 | Trigger / Echo | GPIO |
+| ST7796 TFT | SPI | SPI |
+| MicroSD | SPI | SPI |
+| DS3231 | I2C | I2C |
+| Battery voltage | ADC | ADC GPIO |
+| Rotary encoder | GPIO | GPIO |
+| START button | GPIO | GPIO |
+| BACK button | GPIO | GPIO |
+| Wi-Fi | Integrated | ESP32-S3 |
 
-Responsibilities:
-
-- Execute firmware
-- Manage sensors
-- Process measurements
-- Control display
-- Process user input
-- Manage storage
-- Maintain system state
-- Host Wi-Fi access point
-- Host web server
-- Manage configuration
-- Manage calibration
-- Report system errors
-
-The ESP32-S3 shall not directly contain application logic for individual sensors.
-
-Sensor-specific operations shall be implemented through drivers.
+External sensor communication does not use I2C.
 
 ---
 
-# 6. Conductivity Architecture
+# 6. Software Architecture
 
-The conductivity subsystem consists of:
-
-```text
-┌──────────────┐
-│   SEN0707    │
-│ EC Sensor    │
-└──────┬───────┘
-       │
-       │ RS485
-       │
-┌──────▼───────┐
-│   MAX3485    │
-│ RS485        │
-│ Transceiver  │
-└──────┬───────┘
-       │
-       │ UART
-       │
-┌──────▼───────┐
-│   ESP32-S3   │
-└──────────────┘
-```
-
-The SEN0707 remains physically removable.
-
-The MAX3485 provides the electrical interface between the ESP32-S3 UART and the RS485 bus.
-
-The EC application does not directly manipulate UART or RS485 signals.
-
-The software layers are:
+The firmware shall use a layered architecture.
 
 ```text
-EC Application
-      ↓
-EC Driver
-      ↓
-Modbus RTU Layer
-      ↓
-RS485 Driver
-      ↓
-UART
-      ↓
-MAX3485
-      ↓
-SEN0707
+┌───────────────────────────────────────────┐
+│              USER INTERFACE                │
+│                                           │
+│ TFT UI + Input + Web UI                   │
+└────────────────────┬──────────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────────┐
+│           APPLICATION LAYER              │
+│                                           │
+│ Measurement Manager                       │
+│ Calibration Manager                       │
+│ Configuration Manager                     │
+│ System Manager                            │
+└────────────────────┬──────────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────────┐
+│             SERVICE LAYER                 │
+│                                           │
+│ EC Manager                                │
+│ TOF Manager                               │
+│ Storage Manager                           │
+│ RTC Manager                               │
+│ Power Manager                             │
+│ Wi-Fi Manager                             │
+└────────────────────┬──────────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────────┐
+│              DRIVER LAYER                 │
+│                                           │
+│ UART / RS485                              │
+│ SPI                                       │
+│ I2C                                       │
+│ GPIO                                      │
+│ ADC                                       │
+│ Timer                                     │
+└────────────────────┬──────────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────────┐
+│               HARDWARE                    │
+└───────────────────────────────────────────┘
 ```
 
 ---
 
-# 7. Ultrasonic Architecture
+# 7. Layer Responsibilities
 
-The V0.1 ultrasonic subsystem consists of:
+## 7.1 User Interface Layer
+
+The UI layer is responsible for presenting system information and receiving user input.
+
+Components:
+
+- TFT display
+- Rotary encoder
+- START button
+- BACK button
+- Web interface
+
+The UI shall not directly communicate with sensor hardware.
+
+---
+
+## 7.2 Application Layer
+
+The application layer controls the overall device behavior.
+
+Primary components:
+
+### Measurement Manager
+
+Responsible for:
+
+- Starting measurements
+- Coordinating TOF
+- Reading EC
+- Validating results
+- Creating measurement records
+- Updating the UI
+- Triggering logging
+
+### Calibration Manager
+
+Responsible for:
+
+- EC calibration
+- TOF calibration
+- Calibration validation
+- Saving calibration parameters
+
+### Configuration Manager
+
+Responsible for:
+
+- Loading configuration
+- Saving configuration
+- Configuration validation
+- Configuration versioning
+
+### System Manager
+
+Responsible for:
+
+- Device startup
+- System state
+- Error management
+- Service coordination
+- Shutdown handling
+
+---
+
+# 8. Sensor Service Layer
+
+## 8.1 EC Manager
+
+The EC Manager provides a hardware-independent interface to the conductivity sensor.
+
+Architecture:
 
 ```text
-┌──────────────┐
-│   HC-SR04    │
-│ Ultrasonic   │
-│ Sensor       │
-└──────┬───────┘
-       │
-       ├── TRIG
-       │
-       └── ECHO
-              │
-              ▼
-       Level Shifting
-              │
-              ▼
-         ESP32-S3
+Measurement Manager
+        │
+        ▼
+   IEcSensor
+        │
+        ▼
+ Sen0707Driver
+        │
+        ▼
+ Modbus RTU
+        │
+        ▼
+    MAX3485
+        │
+        ▼
+    SEN0707
 ```
 
-The ultrasonic driver shall hide the HC-SR04-specific implementation.
+The application shall not directly manipulate Modbus frames.
 
-The application shall interact with the ultrasonic subsystem through an abstract interface.
+---
+
+# 9. EC Sensor Abstraction
+
+The firmware should define an interface similar to:
+
+```cpp
+class IEcSensor
+{
+public:
+    virtual bool begin() = 0;
+
+    virtual bool read(
+        float& conductivity
+    ) = 0;
+
+    virtual bool calibrate() = 0;
+
+    virtual bool isConnected() = 0;
+
+    virtual ~IEcSensor() = default;
+};
+```
+
+The SEN0707 implementation shall provide the actual Modbus communication.
+
+This allows a different EC sensor to be introduced later without rewriting the measurement manager.
+
+---
+
+# 10. TOF Manager
+
+The TOF Manager shall provide a hardware-independent interface for ultrasonic measurement.
+
+Architecture:
+
+```text
+Measurement Manager
+        │
+        ▼
+   ITofSensor
+        │
+        ▼
+ HC-SR04 Driver
+        │
+        ▼
+ Trigger / Echo
+        │
+        ▼
+    HC-SR04
+```
+
+The HC-SR04 implementation is considered a prototype implementation only.
+
+---
+
+# 11. TOF Sensor Abstraction
+
+The firmware should define an interface similar to:
+
+```cpp
+class ITofSensor
+{
+public:
+    virtual bool begin() = 0;
+
+    virtual bool measureTof(
+        float& tofUs
+    ) = 0;
+
+    virtual bool calculateDistance(
+        float tofUs,
+        float& distanceMm
+    ) = 0;
+
+    virtual ~ITofSensor() = default;
+};
+```
+
+The interface shall prevent the rest of the application from depending directly on HC-SR04-specific behavior.
+
+---
+
+# 12. TOF Measurement Model
+
+For the V0.1 air-based prototype:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+The actual implementation shall account for the units used by the timer.
+
+For example:
+
+```text
+TOF = 12.482 µs
+
+Speed of Sound ≈ 343 m/s
+
+Distance ≈ 2.14 mm
+```
+
+The calculation shall be implemented in a dedicated TOF processing component.
+
+The future liquid/acoustic measurement system shall use a separate acoustic model if required.
+
+---
+
+# 13. Measurement Manager
+
+The Measurement Manager is the central component for measurement execution.
+
+Measurement sequence:
+
+```text
+IDLE
+  │
+  ▼
+START
+  │
+  ▼
+TOF_TRIGGER
+  │
+  ▼
+TOF_WAIT
+  │
+  ▼
+TOF_PROCESS
+  │
+  ▼
+EC_READ
+  │
+  ▼
+VALIDATE
+  │
+  ▼
+DISPLAY
+  │
+  ▼
+LOG
+  │
+  ▼
+READY
+```
+
+---
+
+# 14. Measurement State Machine
+
+The measurement manager shall maintain an explicit state.
 
 Example:
+
+```cpp
+enum class MeasurementState
+{
+    IDLE,
+    START,
+    TOF_TRIGGER,
+    TOF_WAIT,
+    TOF_PROCESS,
+    EC_READ,
+    VALIDATE,
+    DISPLAY,
+    LOG,
+    READY,
+    ERROR
+};
+```
+
+This prevents measurement logic from becoming distributed across multiple UI and sensor components.
+
+---
+
+# 15. Measurement Data Model
+
+The application shall use a common measurement structure.
+
+Example:
+
+```cpp
+struct Measurement
+{
+    uint64_t timestamp;
+
+    float conductivity;
+    float tofUs;
+    float distanceMm;
+
+    bool conductivityValid;
+    bool tofValid;
+
+    bool valid;
+};
+```
+
+The data model may be expanded later.
+
+---
+
+# 16. RTC Architecture
+
+The RTC service shall provide a hardware-independent interface.
+
+Architecture:
 
 ```text
 Application
     │
     ▼
-TOF Measurement Service
+RTC Manager
     │
     ▼
-Ultrasonic Driver
+DS3231 Driver
     │
     ▼
-HC-SR04
+I2C
+    │
+    ▼
+DS3231
 ```
 
-This allows the HC-SR04 to be replaced later.
+The rest of the application shall not directly access the I2C peripheral.
+
+The RTC Manager shall provide:
+
+- Current date/time
+- Timestamp generation
+- RTC status
 
 ---
 
-# 8. Ultrasonic Future Architecture
+# 17. Storage Architecture
 
-The production system may use a different ultrasonic arrangement.
-
-Possible future architecture:
-
-```text
-ESP32-S3
-    │
-    ▼
-TOF Controller
-    │
-    ├───────────────┐
-    ▼               ▼
-TX Driver       RX Amplifier
-    │               │
-    ▼               ▼
-TX Transducer   RX Transducer
-```
-
-The application layer should not need to change when moving from the HC-SR04 to a dedicated ultrasonic transducer system.
-
-Only the lower-level ultrasonic hardware and driver should change.
-
----
-
-# 9. Display Architecture
-
-The TFT display is connected to the ESP32-S3 through SPI.
-
-```text
-ESP32-S3
-    │
-    │ SPI
-    ▼
-ST7796 TFT
-    │
-    ▼
-480 × 320 Display
-```
-
-The display subsystem shall provide an abstraction between the application and the physical display.
-
-Software architecture:
-
-```text
-Application State
-      ↓
-UI Manager
-      ↓
-Display Renderer
-      ↓
-ST7796 Driver
-      ↓
-SPI
-      ↓
-TFT
-```
-
-The application should not directly draw pixels from sensor drivers.
-
----
-
-# 10. User Input Architecture
-
-The input system consists of:
-
-- Rotary encoder
-- Encoder push button
-- START button
-- BACK button
+Storage shall be abstracted from the application.
 
 Architecture:
 
 ```text
-Physical Controls
-       │
-       ▼
-GPIO
-       │
-       ▼
-Input Driver
-       │
-       ▼
-Input Manager
-       │
-       ▼
-Application Events
-```
-
-Example events:
-
-```text
-ENCODER_UP
-ENCODER_DOWN
-ENCODER_SELECT
-START_PRESSED
-BACK_PRESSED
-```
-
-This event-based design prevents individual GPIO implementations from being spread throughout the application.
-
----
-
-# 11. RTC Architecture
-
-The DS3231 provides the system clock.
-
-```text
-ESP32-S3
-    │
-    │ I2C
-    ▼
-DS3231
-    │
-    ▼
-Date / Time
-```
-
-The RTC service shall provide:
-
-```text
-getDateTime()
-setDateTime()
-isAvailable()
-```
-
-The rest of the application should not directly access the I2C bus.
-
----
-
-# 12. Storage Architecture
-
-The MicroSD card provides persistent measurement storage.
-
-```text
-Measurement Service
+Measurement Manager
         │
         ▼
-   Storage Manager
+ Storage Manager
         │
         ▼
-    CSV Manager
+   SD Driver
         │
         ▼
-      SPI SD
+       SPI
         │
         ▼
      MicroSD
 ```
 
-The storage manager shall handle:
+The Storage Manager shall handle:
 
 - File creation
-- Directory creation
-- CSV headers
+- File opening
 - Record writing
-- File flushing
+- File closing
 - Storage errors
-- File retrieval
-- Data export
+- Export operations
+
+A storage failure shall not crash the measurement application.
 
 ---
 
-# 13. Data Flow
-
-The primary measurement data flow is:
+# 18. Data Logging Flow
 
 ```text
-             ┌──────────────┐
-             │ EC Sensor    │
-             └──────┬───────┘
-                    │
-                    ▼
-             EC Driver
-                    │
-                    ▼
-             EC Measurement
-                    │
-                    │
-                    ▼
-              Measurement
-                Manager
-                    ▲
-                    │
-                    │
-             TOF Measurement
-                    ▲
-                    │
-                TOF Driver
-                    ▲
-                    │
-             Ultrasonic Sensor
+Measurement Complete
+        │
+        ▼
+Create Measurement Record
+        │
+        ▼
+Add RTC Timestamp
+        │
+        ▼
+Validate Record
+        │
+        ▼
+Storage Manager
+        │
+        ▼
+Append CSV
+        │
+        ▼
+Confirm Write
 ```
 
-The measurement manager combines the sensor results into one measurement record.
-
-Example internal data structure:
-
-```cpp
-struct Measurement
-{
-    uint32_t id;
-    DateTime timestamp;
-
-    float conductivity_uS_cm;
-    float tof_us;
-    float distance_mm;
-
-    MeasurementStatus status;
-};
-```
-
----
-
-# 14. Measurement Sequence
-
-The standard measurement sequence shall be:
+If storage fails:
 
 ```text
-                 IDLE
-                   │
-                   │ START
-                   ▼
-                STARTING
-                   │
-                   ▼
-          Trigger Ultrasonic
-                   │
-                   ▼
-            Wait for Echo
-              │         │
-              │         │
-           Valid      Timeout
-              │         │
-              ▼         ▼
-          Calculate    ERROR
-             TOF          │
-              │           ▼
-              ▼         READY
-        Calculate
-          Distance
-              │
-              ▼
-        Read Conductivity
-              │
-              ▼
-        Validate Results
-              │
-              ├───────────────┐
-              │               │
-            Valid           Invalid
-              │               │
-              ▼               ▼
-        Create Record        ERROR
-              │
-              ▼
-        Update Display
-              │
-              ▼
-          Write to SD
-              │
-              ▼
-             READY
+Storage Failure
+      │
+      ├── Show Warning
+      ├── Keep Measurement in Memory
+      └── Continue Device Operation
 ```
 
+The exact temporary buffering strategy may be expanded later.
+
 ---
 
-# 15. Measurement State Machine
+# 19. Display Architecture
 
-The firmware shall implement the measurement workflow as a state machine.
-
-Recommended states:
+The display shall be separated into:
 
 ```text
-SYSTEM_INIT
-IDLE
-MEASUREMENT_START
-TOF_TRIGGER
-TOF_WAIT
-TOF_PROCESS
-EC_READ
-VALIDATE
-DISPLAY_RESULT
-LOG_RESULT
-MEASUREMENT_COMPLETE
-MEASUREMENT_ERROR
-```
-
-State transitions shall be deterministic.
-
-A failed operation shall not leave the system permanently stuck in a measurement state.
-
----
-
-# 16. Measurement Record Lifecycle
-
-A measurement follows this lifecycle:
-
-```text
-Sensor Data
-    ↓
-Raw Measurement
-    ↓
-Validation
-    ↓
-Processed Measurement
-    ↓
-Measurement Object
-    ↓
-Display
-    ↓
-Storage
-    ↓
-Web API
-```
-
-The same validated measurement object should be used by:
-
-- TFT UI
-- Web UI
-- SD logger
-- Measurement history
-
-This prevents the different interfaces from calculating different values.
-
----
-
-# 17. Data Ownership
-
-Each subsystem shall have clear ownership.
-
-| Data                 | Owner                            |
-| -------------------- | -------------------------------- |
-| Conductivity reading | EC Driver / Measurement Manager  |
-| TOF                  | TOF Driver / Measurement Manager |
-| Distance             | Measurement Manager              |
-| Timestamp            | RTC Service                      |
-| Measurement record   | Measurement Manager              |
-| Stored measurement   | Storage Manager                  |
-| Calibration values   | Calibration Manager              |
-| Device configuration | Configuration Manager            |
-| UI state             | UI Manager                       |
-| Battery state        | Power Manager                    |
-| System state         | System Manager                   |
-
----
-
-# 18. Software Architecture
-
-The recommended software architecture is:
-
-```text
-┌─────────────────────────────────────────┐
-│              User Interfaces            │
-│                                         │
-│       TFT UI              Web UI        │
-└────────────────┬───────────────┬────────┘
-                 │               │
-                 ▼               ▼
-┌─────────────────────────────────────────┐
-│           Application Services          │
-│                                         │
-│ Measurement │ Calibration │ Config      │
-│ System      │ Power       │ History     │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│              Device Services            │
-│                                         │
-│ EC │ TOF │ RTC │ Storage │ Input │ WiFi │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│              Hardware Drivers           │
-│                                         │
-│ UART │ RS485 │ GPIO │ SPI │ I2C │ RMT   │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│                 Hardware                │
-└─────────────────────────────────────────┘
-```
-
----
-
-# 19. Software Layer Responsibilities
-
-## 19.1 Hardware Drivers
-
-Responsible for direct hardware communication.
-
-Examples:
-
-```text
-GPIO
+Application Data
+      │
+      ▼
+Display Manager
+      │
+      ▼
+UI Screens
+      │
+      ▼
+ST7796 Driver
+      │
+      ▼
 SPI
-I2C
-UART
-RS485
-RMT
-SD
+      │
+      ▼
 TFT
 ```
 
-Drivers should not contain application decisions.
+The Display Manager shall not perform sensor communication.
 
 ---
 
-## 19.2 Device Services
+# 20. Input Architecture
 
-Responsible for converting hardware interfaces into usable device functions.
+Physical inputs shall be handled by a dedicated Input Manager.
 
-Examples:
+Architecture:
 
 ```text
-EC Service
-TOF Service
-RTC Service
-Storage Service
-Input Service
-Power Service
-```
-
----
-
-## 19.3 Application Services
-
-Responsible for system behavior.
-
-Examples:
-
-```text
-Measurement Manager
-Calibration Manager
-Configuration Manager
-System Manager
-History Manager
-```
-
----
-
-## 19.4 User Interfaces
-
-Responsible only for presentation and user interaction.
-
-Interfaces:
-
-```text
-TFT UI
-Web UI
-```
-
-Both interfaces should consume the same application state.
-
----
-
-# 20. FreeRTOS Architecture
-
-The system may use the following tasks:
-
-```text
-┌──────────────────────────────────┐
-│          FreeRTOS System         │
-│                                  │
-│  System Task                     │
-│  Measurement Task                │
-│  UI Task                         │
-│  Storage Task                    │
-│  Web Task                        │
-│  Input Task                      │
-└──────────────────────────────────┘
-```
-
-The exact number of tasks may be reduced during implementation if simpler synchronization is sufficient.
-
----
-
-# 21. Task Responsibilities
-
-### System Task
-
-Responsible for:
-
-- Startup
-- System state
-- Error monitoring
-- Power state
-
-### Measurement Task
-
-Responsible for:
-
-- Measurement sequence
-- Sensor coordination
-- Validation
-- Measurement result
-
-### UI Task
-
-Responsible for:
-
-- Display updates
-- Menu rendering
-- UI state
-
-### Storage Task
-
-Responsible for:
-
-- SD operations
-- CSV writes
-- Data export
-
-### Web Task
-
-Responsible for:
-
-- HTTP server
-- API requests
-- Web interface
-
-### Input Task
-
-Responsible for:
-
-- Buttons
-- Rotary encoder
-- Input events
-
----
-
-# 22. Inter-Task Communication
-
-Tasks should communicate using FreeRTOS synchronization mechanisms.
-
-Recommended:
-
-```text
-Input Task
-    │
-    ▼
-Event Queue
-    │
-    ▼
+Encoder / Buttons
+        │
+        ▼
+   GPIO Driver
+        │
+        ▼
+ Input Manager
+        │
+        ▼
 Application
-
-Measurement Task
-    │
-    ▼
-Measurement Queue
-    │
-    ├──► UI Task
-    │
-    ├──► Storage Task
-    │
-    └──► Web API
 ```
 
-Shared data shall be protected against concurrent access.
-
----
-
-# 23. Power Architecture
-
-The power system is divided into several voltage domains.
+The Input Manager shall provide logical events such as:
 
 ```text
-                  Battery
-                 3.7 V
-                    │
-                    ▼
-              Power Switch
-                    │
-          ┌─────────┴─────────┐
-          │                   │
-          ▼                   ▼
-      12 V Boost          5 V Rail
-          │                   │
-          ▼             ┌─────┴─────┐
-       SEN0707          │           │
-                        ▼           ▼
-                       TFT       HC-SR04
-                        
-                    3.3 V Logic
-                         │
-                         ▼
-                     ESP32-S3
+ENCODER_CW
+ENCODER_CCW
+ENCODER_PRESS
+START_PRESS
+BACK_PRESS
 ```
 
-The final regulator arrangement will be determined during hardware design.
+This keeps GPIO handling separate from application behavior.
 
 ---
 
-# 24. Power Domain Separation
+# 21. Power Architecture
 
-The following should be considered separate power domains:
+The system shall provide a simple battery monitoring service.
+
+The Power Manager shall not perform detailed power analysis.
+
+Architecture:
 
 ```text
-High Voltage Sensor Domain
-    └── SEN0707
-
-5 V Peripheral Domain
-    ├── TFT
-    └── HC-SR04
-
-3.3 V Logic Domain
-    ├── ESP32-S3
-    ├── MAX3485
-    ├── DS3231
-    └── Control Inputs
+Battery
+   │
+   ├── Power System
+   │
+   └── Voltage Divider
+           │
+           ▼
+        ESP32 ADC
+           │
+           ▼
+      Power Manager
+           │
+           ▼
+    Battery Percentage
+           │
+           ├── TFT
+           │
+           └── Web UI
 ```
-
-Power domains should share a controlled common ground unless isolation is required by the final hardware design.
 
 ---
 
-# 25. RS485 Architecture
+# 22. Battery Data Model
 
-The RS485 interface shall use a dedicated UART.
+The Power Manager should expose:
+
+```cpp
+enum class BatteryState
+{
+    NORMAL,
+    LOW
+};
+
+struct PowerStatus
+{
+    float batteryVoltage;
+    uint8_t batteryPercent;
+    BatteryState state;
+};
+```
+
+The battery percentage is an estimate based on battery voltage.
+
+It shall not be treated as laboratory-grade state-of-charge information.
+
+---
+
+# 23. Battery Monitoring Behavior
+
+The Power Manager shall:
+
+1. Read the ADC.
+2. Convert the ADC value to battery voltage.
+3. Estimate battery percentage.
+4. Determine battery state.
+5. Publish the result to the application.
+6. Update the UI.
+
+Example:
 
 ```text
-ESP32-S3 UART
-     │
-     ▼
-MAX3485
-     │
-     ├── A
-     └── B
-         │
-         ▼
-      SEN0707
+Battery Voltage
+      │
+      ▼
+ADC Conversion
+      │
+      ▼
+Voltage Calculation
+      │
+      ▼
+Percentage Lookup
+      │
+      ▼
+Battery State
+      │
+      ▼
+UI / Web
 ```
 
-The RS485 communication layer shall handle:
+The system shall provide a low battery warning.
 
-- TX
-- RX
-- Driver enable
-- Receive enable where required
-- Modbus timing
-- CRC
-- Timeout
-- Retry
+A precision battery fuel gauge is not required for V0.1.
 
 ---
 
-# 26. SPI Architecture
+# 24. Wi-Fi Architecture
 
-SPI peripherals include:
-
-```text
-ESP32-S3
-    │
-    ├── SPI → TFT
-    │
-    └── SPI → MicroSD
-```
-
-Each peripheral shall have an independent chip-select signal.
-
-Where practical, the display and SD card should use separate SPI buses to simplify development and reduce bus contention.
-
-The final bus allocation will be defined in `04-hardware-design.md`.
-
----
-
-# 27. I2C Architecture
-
-I2C will primarily be used for the DS3231 RTC.
-
-The system intentionally avoids using I2C for external sensors.
+The ESP32-S3 shall operate as a local Wi-Fi access point.
 
 Architecture:
 
 ```text
 ESP32-S3
     │
-    │ I2C
     ▼
-DS3231
+Wi-Fi Manager
+    │
+    ▼
+HTTP Server
+    │
+    ├── Web UI
+    │
+    └── REST API
 ```
 
-Future internal I2C devices may be added if electrical noise and bus requirements permit.
-
----
-
-# 28. GPIO Architecture
-
-GPIOs will be allocated according to functional groups.
-
-Major GPIO groups:
+Recommended default:
 
 ```text
-EC / RS485
-├── UART TX
-├── UART RX
-└── RS485 Direction
-
-Ultrasonic
-├── TRIG
-└── ECHO
-
-User Input
-├── Encoder A
-├── Encoder B
-├── Encoder Button
-├── START
-└── BACK
-
-Display
-├── SPI
-├── CS
-├── DC
-├── RESET
-└── Backlight
-
-SD
-├── SPI
-└── CS
+SSID: EC-TOF-Analyzer
+IP:   192.168.4.1
 ```
 
-Final GPIO numbers shall be defined in the hardware design document.
+The Wi-Fi system shall operate independently of sensor communication.
 
 ---
 
-# 29. Calibration Architecture
+# 25. Web Application Architecture
 
-Calibration shall be isolated from measurement logic.
+The web application shall consume application data.
+
+It shall not access hardware drivers directly.
+
+```text
+Browser
+   │
+   ▼
+HTTP Server
+   │
+   ▼
+REST API
+   │
+   ▼
+Application Services
+   │
+   ├── Measurement Manager
+   ├── Configuration Manager
+   ├── Calibration Manager
+   ├── Storage Manager
+   └── Power Manager
+```
+
+---
+
+# 26. REST API Architecture
+
+Required endpoints:
+
+```text
+GET  /api/device
+GET  /api/system/status
+
+GET  /api/measurement/current
+POST /api/measurement/start
+
+GET  /api/measurements
+GET  /api/export/YYYY-MM-DD.csv
+
+GET  /api/calibration/ec
+POST /api/calibration/ec
+
+GET  /api/config
+POST /api/config
+```
+
+Example system status response:
+
+```json
+{
+    "battery_voltage": 3.82,
+    "battery_percent": 52,
+    "battery_state": "NORMAL"
+}
+```
+
+No battery current or power values are required.
+
+---
+
+# 27. Configuration Architecture
+
+Configuration shall be managed through a dedicated service.
+
+```text
+Application
+    │
+    ▼
+Configuration Manager
+    │
+    ▼
+ESP-IDF NVS
+```
+
+Configuration shall include:
+
+- Device settings
+- Measurement settings
+- Calibration values
+- Display settings
+- Logging settings
+- Sensor configuration
+
+Configuration shall be versioned.
+
+---
+
+# 28. Calibration Architecture
+
+Calibration shall be independent from the sensor drivers.
 
 ```text
 User
@@ -980,457 +930,522 @@ Calibration UI
  ▼
 Calibration Manager
  │
- ├── EC Calibration
- │
- └── TOF Calibration
- │
- ▼
-Configuration Storage
+ ├───────────────┐
+ ▼               ▼
+EC Calibration   TOF Calibration
+ │               │
+ ▼               ▼
+Sensor           Reference
+ │               │
+ └───────┬───────┘
+         ▼
+ Configuration Manager
+         │
+         ▼
+        NVS
 ```
 
-The measurement manager shall retrieve validated calibration parameters when performing calculations.
-
-Calibration data shall not be hardcoded into the sensor drivers.
+Calibration parameters shall survive a reboot.
 
 ---
 
-# 30. Configuration Architecture
+# 29. Task Architecture
 
-Configuration follows:
+The firmware may use the following FreeRTOS tasks:
 
 ```text
-User
- │
- ├── TFT UI
- │
- └── Web UI
-       │
-       ▼
-Configuration Manager
-       │
-       ▼
-Non-Volatile Storage
+┌─────────────────────────────┐
+│ Measurement Task            │
+│ Measurement state machine    │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│ UI Task                     │
+│ TFT updates                 │
+│ User interaction             │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│ Storage Task                │
+│ SD logging                  │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│ Web Task                    │
+│ HTTP server                 │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│ System Task                 │
+│ RTC / battery / health      │
+└─────────────────────────────┘
 ```
 
-The configuration manager is the single source of truth for system configuration.
+The final implementation should avoid creating unnecessary tasks.
+
+Simple operations may run inside an existing task instead of receiving their own task.
 
 ---
 
-# 31. Web Architecture
+# 30. Inter-Task Communication
 
-The ESP32-S3 will host the local web application.
+Where required, FreeRTOS mechanisms shall be used.
 
-```text
-Phone / Laptop
-      │
-      │ Wi-Fi
-      ▼
-ESP32-S3 Access Point
-      │
-      ▼
-HTTP Server
-      │
-      ├── Web UI
-      │
-      └── REST API
-              │
-              ▼
-        Application Services
-```
+Possible mechanisms:
 
-The web interface must not directly access sensor hardware.
-
----
-
-# 32. Web Data Flow
-
-For current measurements:
-
-```text
-Sensor
-  ↓
-Measurement Manager
-  ↓
-Current Measurement
-  ↓
-Web API
-  ↓
-HTTP Response
-  ↓
-Browser
-```
-
-For stored measurements:
-
-```text
-MicroSD
-  ↓
-Storage Manager
-  ↓
-History / Export Service
-  ↓
-Web API
-  ↓
-Browser
-```
-
----
-
-# 33. Measurement Data Flow
-
-The complete measurement flow is:
-
-```text
-                  START
-                    │
-                    ▼
-             Measurement Task
-                    │
-                    ▼
-             Ultrasonic Driver
-                    │
-                    ▼
-              TOF Measurement
-                    │
-                    ▼
-             Distance Calculation
-                    │
-                    ▼
-                EC Driver
-                    │
-                    ▼
-            Conductivity Reading
-                    │
-                    ▼
-             Result Validation
-                    │
-                    ▼
-            Measurement Object
-                    │
-          ┌─────────┼─────────┐
-          │         │         │
-          ▼         ▼         ▼
-        TFT       SD Card    Web API
-          │         │         │
-          └─────────┴─────────┘
-                    │
-                    ▼
-                  READY
-```
-
----
-
-# 34. Error Architecture
-
-Errors should propagate through defined layers.
+- Queues
+- Mutexes
+- Event groups
+- Notifications
+- Shared state with controlled access
 
 Example:
 
 ```text
-SEN0707
-   │
-   ▼
-Modbus Error
-   │
-   ▼
-EC Driver
-   │
-   ▼
-Measurement Manager
-   │
-   ▼
-System Error State
-   │
-   ├──► TFT
-   ├──► Web UI
-   └──► Log
+Measurement Task
+       │
+       ▼
+Measurement Queue
+       │
+       ├────────► UI
+       │
+       ├────────► Storage
+       │
+       └────────► Web
 ```
 
-A low-level hardware error must not directly manipulate the user interface.
+The measurement result should have a single application-level source of truth.
 
 ---
 
-# 35. Error Recovery
+# 31. Error Architecture
 
-Recoverable errors should use controlled recovery.
+Errors shall be handled at the appropriate layer.
 
 Example:
 
 ```text
-RS485 Timeout
+Hardware Error
       │
       ▼
-Retry
+Driver
       │
-   ┌──┴──┐
-   │     │
-Success Failure
-   │     │
-   ▼     ▼
-Continue  Error State
+      ▼
+Sensor Service
+      │
+      ▼
+Application
+      │
+      ├── UI Warning
+      ├── Web Status
+      └── Log
 ```
 
-The number of retries shall be configurable.
-
-Persistent failures shall be reported to the user.
+The application shall not expose raw hardware errors directly to the user where a readable error message can be provided.
 
 ---
 
-# 36. Startup Sequence
+# 32. System Startup Sequence
 
-The startup sequence shall be:
+The device shall initialize in a controlled sequence.
+
+Recommended startup:
 
 ```text
-Power ON
+Power On
    │
    ▼
 ESP32 Boot
    │
    ▼
-Hardware Initialization
+System Initialization
    │
    ├── GPIO
    ├── SPI
-   ├── UART
    ├── I2C
+   ├── UART
+   ├── ADC
    └── Timers
    │
    ▼
 Peripheral Initialization
    │
    ├── TFT
-   ├── RTC
    ├── SD
+   ├── RTC
    ├── RS485
-   └── Ultrasonic
+   ├── EC Sensor
+   └── TOF Sensor
    │
    ▼
-Load Configuration
+Configuration Load
    │
    ▼
-Initialize Services
+Wi-Fi Start
    │
    ▼
-Start Wi-Fi
+Application Services Start
    │
    ▼
-Start Web Server
-   │
-   ▼
-System Ready
+READY
 ```
 
-A failure in an optional subsystem should not necessarily prevent the system from booting.
+A failure in one non-critical peripheral should not necessarily prevent the device from starting.
 
 For example:
 
 ```text
-SD unavailable
-      ↓
-System continues
-      ↓
-SD ERROR displayed
+SD Failure
+   │
+   ▼
+Show SD Warning
+   │
+   ▼
+Continue Device Operation
 ```
 
 ---
 
-# 37. Shutdown and Power Loss
+# 33. Measurement Data Flow
 
-The system should attempt to maintain data integrity during power loss.
-
-Before shutdown where possible:
-
-- Flush SD buffers
-- Save configuration changes
-- Stop active measurements
-- Disable unnecessary peripherals
-
-Because sudden battery removal cannot always be predicted, measurement records should be written promptly after completion.
-
----
-
-# 38. Security Architecture
-
-V0.1 is a local laboratory prototype.
-
-Security requirements are intentionally limited.
-
-The system should:
-
-- Avoid exposing the device to the public internet.
-- Use a configurable Wi-Fi password.
-- Avoid storing unnecessary personal information.
-- Validate web API inputs.
-- Reject malformed requests.
-- Restrict configuration values to valid ranges.
-
-Advanced authentication is outside V0.1 scope.
-
----
-
-# 39. Enclosure Architecture
-
-The enclosure shall physically separate:
+Complete measurement flow:
 
 ```text
-Front
-├── TFT Display
-├── Rotary Encoder
-├── START Button
-└── BACK Button
-
-Side / Rear
-├── Power Switch
-├── USB-C
-├── EC Sensor Connector
-└── Ultrasonic Connector
-
-Internal
-├── ESP32-S3
-├── Battery
-├── Power Converters
-├── RS485 Interface
-├── SD Module
-└── RTC
+User presses START
+        │
+        ▼
+Measurement Manager
+        │
+        ▼
+Trigger TOF
+        │
+        ▼
+Capture Echo
+        │
+        ▼
+Calculate TOF
+        │
+        ▼
+Calculate Distance
+        │
+        ▼
+Read EC
+        │
+        ▼
+Validate Measurement
+        │
+        ▼
+Create Measurement Record
+        │
+        ├──────────────► Display
+        │
+        ├──────────────► Web API
+        │
+        └──────────────► Storage
 ```
-
-The exact enclosure layout will be defined during hardware development.
 
 ---
 
-# 40. Sensor Replacement Architecture
+# 34. Measurement Validation
 
-A major architectural requirement is sensor replaceability.
+Before a measurement is marked valid, the application shall verify:
 
-The application should use interfaces rather than sensor-specific implementations.
+- TOF completed successfully.
+- TOF is within configured limits.
+- Distance calculation succeeded.
+- EC communication succeeded.
+- EC value is within configured limits.
+- Timestamp is available.
 
-Example:
+If validation fails:
 
 ```text
-              Measurement Service
-                     │
-            ┌────────┴────────┐
-            │                 │
-        EC Interface      TOF Interface
-            │                 │
-            ▼                 ▼
-       SEN0707 Driver    HC-SR04 Driver
-                              │
-                              │ Future
-                              ▼
-                     Industrial TOF Driver
+Measurement
+    │
+    ▼
+Validation Failed
+    │
+    ├── Status = INVALID
+    ├── Show Error
+    └── Optional Log
 ```
-
-The measurement service should remain unchanged when the underlying sensor changes.
 
 ---
 
-# 41. V0.1 to Production Architecture
+# 35. Project Structure
 
-The expected evolution is:
+Recommended firmware structure:
 
 ```text
-V0.1 Prototype
-      │
-      ├── ESP32 DevKit
-      ├── HC-SR04
-      ├── Module-based power
-      ├── Module-based SD
-      └── Development enclosure
-      │
-      ▼
-Validated Prototype
-      │
-      ├── Confirm measurement method
-      ├── Confirm sensor requirements
-      ├── Measure accuracy
-      └── Measure power consumption
-      │
-      ▼
-Production Design
-      │
-      ├── Custom PCB
-      ├── Final ultrasonic hardware
-      ├── Optimized power system
-      ├── Industrial connectors
-      ├── Production enclosure
-      └── Validation / certification
+ec-tof-analyzer/
+│
+├── main/
+│   │
+│   ├── main.cpp
+│   │
+│   ├── app/
+│   │   ├── measurement_manager/
+│   │   ├── calibration_manager/
+│   │   ├── configuration_manager/
+│   │   └── system_manager/
+│   │
+│   ├── sensors/
+│   │   ├── ec/
+│   │   │   ├── iec_sensor.h
+│   │   │   └── sen0707_driver.cpp
+│   │   │
+│   │   └── tof/
+│   │       ├── itof_sensor.h
+│   │       └── hc_sr04_driver.cpp
+│   │
+│   ├── drivers/
+│   │   ├── rs485/
+│   │   ├── uart/
+│   │   ├── spi/
+│   │   ├── i2c/
+│   │   ├── gpio/
+│   │   ├── adc/
+│   │   └── timer/
+│   │
+│   ├── display/
+│   ├── input/
+│   ├── storage/
+│   ├── rtc/
+│   ├── web/
+│   ├── power/
+│   ├── system/
+│   └── common/
+│
+└── components/
 ```
-
-The production design shall not be started until the V0.1 prototype has demonstrated the measurement concept.
 
 ---
 
-# 42. Architecture Summary
+# 36. Dependency Rules
 
-The EC-TOF Analyzer uses the ESP32-S3 as the central processing platform.
+The architecture shall follow these dependency rules:
 
-The architecture is divided into independent subsystems:
+### UI
+
+Can depend on:
+
+- Application data
+- UI services
+
+Should not depend directly on:
+
+- Sensor drivers
+- UART
+- SPI
+- I2C
+
+### Application
+
+Can depend on:
+
+- Service interfaces
+- Data models
+
+Should not depend directly on:
+
+- GPIO registers
+- SPI transactions
+- UART transactions
+
+### Services
+
+Can depend on:
+
+- Driver interfaces
+- Hardware abstractions
+
+### Drivers
+
+Can depend on:
+
+- ESP-IDF hardware APIs
+
+Drivers should not depend on:
+
+- UI
+- Web
+- Measurement Manager
+
+---
+
+# 37. Prototype-to-Production Strategy
+
+The V0.1 architecture intentionally separates hardware-specific implementations from application logic.
+
+For example:
 
 ```text
-                         ┌──────────────┐
-                         │   SEN0707    │
-                         │ Conductivity │
-                         └──────┬───────┘
-                                │ RS485
-                                ▼
-                         ┌──────────────┐
-                         │   ESP32-S3   │
-                         │              │
-        ┌────────────────┤ Main Control ├─────────────────┐
-        │                │              │                 │
-        │                └──────────────┘                 │
-        │                       │                         │
-        ▼                       ▼                         ▼
-   HC-SR04                   TFT UI                    Wi-Fi
-      │                       │                         │
-      │                       │                         ▼
-      │                       │                      Web UI
-      │                       │
-      ▼                       ▼
-   TOF Data              User Controls
+Current:
 
-                         ESP32-S3
-                            │
-              ┌─────────────┴─────────────┐
-              ▼                           ▼
-            SD Card                      DS3231
-              │                           │
-              ▼                           ▼
-         Measurement                  Timestamp
-           History
+ITofSensor
+    │
+    ▼
+HC-SR04 Driver
+
+Future:
+
+ITofSensor
+    │
+    ▼
+Production Acoustic Driver
 ```
 
-The key architectural decision is that the application operates on measurement abstractions rather than directly on sensor hardware.
+The Measurement Manager should not require significant changes when the TOF hardware changes.
 
-This allows the prototype hardware to evolve without requiring a complete firmware rewrite.
+The same principle applies to the conductivity sensor:
+
+```text
+IEcSensor
+    │
+    ▼
+Sen0707Driver
+```
+
+Future:
+
+```text
+IEcSensor
+    │
+    ▼
+ProductionEcDriver
+```
 
 ---
 
-# 43. Architecture Baseline
+# 38. Reliability Principles
 
-The following decisions are considered the V0.1 architecture baseline:
+The firmware shall follow these principles:
 
-| Area                  | Decision                      |
-| --------------------- | ----------------------------- |
-| MCU                   | ESP32-S3                      |
-| Firmware              | ESP-IDF                       |
-| EC Sensor             | DFRobot SEN0707               |
-| EC Interface          | RS485 Modbus RTU              |
-| RS485 Transceiver     | MAX3485                       |
-| Ultrasonic            | HC-SR04 prototype             |
-| Ultrasonic Interface  | GPIO                          |
-| Display               | 4-inch 480×320 ST7796 SPI TFT |
-| Storage               | MicroSD SPI                   |
-| RTC                   | DS3231 I2C                    |
-| User Input            | Rotary encoder + START + BACK |
-| Wi-Fi                 | ESP32-S3 Access Point         |
-| Web                   | Local HTTP server             |
-| Data Format           | CSV                           |
-| Battery               | 3.7 V rechargeable battery    |
-| EC Power              | Boosted supply                |
-| Architecture          | Modular                       |
-| External Sensors      | Removable                     |
-| Production Ultrasonic | Not yet selected              |
+1. Sensor failures must not crash the application.
+2. SD failures must not crash the measurement system.
+3. Web interface failures must not stop measurements.
+4. UI failures must not directly affect sensor drivers.
+5. Hardware-specific code shall remain isolated.
+6. Measurement data shall have a single application-level representation.
+7. Configuration shall be persistent.
+8. Calibration data shall be persistent.
+9. External sensors shall remain removable.
+10. Interfaces shall be replaceable where practical.
 
-This document defines the system-level architecture. Detailed GPIO assignments, wiring, connector selection, power converters, protection circuits, and the complete BOM will be defined in `04-hardware-design.md`.
+---
+
+# 39. V0.1 Architecture Boundary
+
+The V0.1 architecture intentionally focuses on:
+
+```text
+EC Measurement
+       +
+Ultrasonic TOF
+       +
+Distance Calculation
+       +
+Timestamp
+       +
+Data Logging
+       +
+Local Display
+       +
+Physical Controls
+       +
+Local Wi-Fi
+       +
+Simple Battery Indicator
+```
+
+The following are outside the V0.1 architecture:
+
+- Cloud services
+- Cellular communication
+- Remote monitoring
+- Precision battery fuel gauging
+- Battery current measurement
+- Battery power measurement
+- Production-grade acoustic electronics
+- Advanced analytics
+- User authentication
+- Multi-device management
+- OTA firmware management
+
+---
+
+# 40. Architecture Success Criteria
+
+The architecture shall be considered successful when:
+
+- Each major hardware subsystem has a clear interface.
+- Application logic is independent of specific sensor implementations.
+- EC communication is isolated behind an EC interface.
+- TOF communication is isolated behind a TOF interface.
+- Hardware drivers are separated from application logic.
+- Measurement data has a consistent structure.
+- UI and web interfaces consume application data.
+- Storage is isolated behind a storage service.
+- RTC access is isolated behind an RTC service.
+- Battery monitoring is isolated behind a power service.
+- Sensor failures are recoverable.
+- The prototype can be upgraded without rewriting the entire application.
+
+---
+
+# 41. Final Architecture
+
+The final V0.1 architecture can be summarized as:
+
+```text
+                         ┌─────────────────────────┐
+                         │        USER            │
+                         └────────────┬────────────┘
+                                      │
+                  ┌───────────────────┴───────────────────┐
+                  │                                       │
+                  ▼                                       ▼
+          ┌───────────────┐                       ┌───────────────┐
+          │ TFT + Inputs  │                       │ Web Browser   │
+          └───────┬───────┘                       └───────┬───────┘
+                  │                                       │
+                  └──────────────────┬────────────────────┘
+                                     ▼
+                         ┌─────────────────────────┐
+                         │   APPLICATION LAYER     │
+                         │                         │
+                         │ Measurement Manager     │
+                         │ Calibration Manager     │
+                         │ Configuration Manager   │
+                         │ System Manager          │
+                         └────────────┬────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+            ▼                         ▼                         ▼
+     ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
+     │ EC Manager  │          │ TOF Manager │          │   Services  │
+     │             │          │             │          │             │
+     │ SEN0707     │          │ HC-SR04     │          │ Storage     │
+     │ Modbus RTU  │          │             │          │ RTC         │
+     └──────┬──────┘          └──────┬──────┘          │ Power       │
+            │                        │                 │ Wi-Fi       │
+            ▼                        ▼                 └──────┬──────┘
+     ┌─────────────┐          ┌─────────────┐                │
+     │ MAX3485     │          │ GPIO/Timer  │                │
+     └──────┬──────┘          └──────┬──────┘                │
+            │                        │                        │
+            ▼                        ▼                        ▼
+       SEN0707                   HC-SR04                ESP32-S3
+                                                        Peripherals
+                                                           │
+                         ┌─────────────────────────────────┼──────────────┐
+                         │                                 │              │
+                         ▼                                 ▼              ▼
+                       TFT                              MicroSD         DS3231
+                         │
+                         ▼
+                    User Output
+```
+
+The architecture keeps the prototype simple while preserving clear boundaries for future production hardware.
