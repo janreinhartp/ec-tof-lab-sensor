@@ -1,0 +1,1107 @@
+# EC-TOF Analyzer
+## Technical Requirements
+
+Version: 0.1  
+Status: Prototype Planning  
+Related Document: `01-product-requirements.md`
+
+---
+
+## 1. Purpose
+
+This document defines the technical requirements for the EC-TOF Analyzer V0.1 prototype.
+
+It converts the product requirements into measurable technical specifications for:
+
+- Controller
+- Conductivity measurement
+- Ultrasonic measurement
+- Display
+- User input
+- RTC
+- Data storage
+- Wi-Fi
+- Power
+- Battery
+- Communications
+- Firmware
+- Data logging
+- Calibration
+- Error handling
+
+The requirements in this document will be used as the basis for the system architecture and hardware design.
+
+---
+
+# 2. System Requirements
+
+| ID | Requirement |
+|---|---|
+| SYS-001 | The system shall use an ESP32-S3 as the primary controller. |
+| SYS-002 | The system shall operate without an internet connection. |
+| SYS-003 | The system shall support battery-powered operation. |
+| SYS-004 | The system shall provide a local graphical user interface. |
+| SYS-005 | The system shall provide local Wi-Fi connectivity. |
+| SYS-006 | The system shall support removable external sensors. |
+| SYS-007 | The system shall support measurement data logging. |
+| SYS-008 | The system shall use modular firmware architecture. |
+| SYS-009 | The system shall detect and report sensor and hardware errors. |
+| SYS-010 | The system shall be designed for prototype laboratory use. |
+
+---
+
+# 3. Main Controller
+
+## 3.1 Controller
+
+The V0.1 prototype shall use:
+
+**ESP32-S3-DevKitC-1-N8R8**
+
+Required characteristics:
+
+- ESP32-S3 MCU
+- Dual-core Xtensa LX7
+- Wi-Fi
+- Bluetooth LE
+- Hardware peripherals required for the project
+- SPI
+- UART
+- I2C
+- GPIO
+- Hardware timers
+- Sufficient RAM and flash for the application
+
+The ESP32-S3 will be responsible for:
+
+- System control
+- Sensor communication
+- Measurement processing
+- Display control
+- User input
+- Data logging
+- RTC communication
+- Wi-Fi
+- Web server
+- Configuration
+- Error handling
+
+---
+
+# 4. Firmware Platform
+
+The firmware shall use:
+
+**ESP-IDF**
+
+The project shall use C++ where appropriate while maintaining compatibility with ESP-IDF APIs.
+
+The firmware shall be organized into independent modules.
+
+Recommended structure:
+
+```text
+main/
+├── system/
+├── sensors/
+│   ├── ec/
+│   └── tof/
+├── display/
+├── input/
+├── storage/
+├── rtc/
+├── calibration/
+├── power/
+├── web/
+└── configuration/
+```
+
+---
+
+# 5. Conductivity Measurement
+
+## 5.1 Sensor
+
+The prototype shall use:
+
+**DFRobot SEN0707 Industrial Water Conductivity Sensor**
+
+The sensor shall be connected through RS485.
+
+The ESP32-S3 shall communicate with the sensor using Modbus RTU.
+
+---
+
+## 5.2 Electrical Requirements
+
+The conductivity sensor requires a higher supply voltage than the ESP32-S3.
+
+The prototype shall therefore provide a dedicated boosted supply.
+
+Target architecture:
+
+```text
+3.7 V Battery
+      │
+      ▼
+12 V Boost Converter
+      │
+      ▼
+SEN0707
+```
+
+The exact converter current rating shall be determined during hardware design.
+
+---
+
+## 5.3 Communication
+
+The EC communication path shall be:
+
+```text
+ESP32-S3 UART
+      │
+      ▼
+MAX3485
+      │
+      ▼
+RS485
+      │
+      ▼
+SEN0707
+```
+
+The RS485 interface shall support:
+
+- Modbus RTU
+- Half-duplex communication
+- Configurable baud rate
+- Configurable device address
+- CRC validation
+- Communication timeout
+- Retry handling
+
+The EC driver shall not expose raw Modbus implementation details to the application layer.
+
+---
+
+## 5.4 EC Driver Interface
+
+The firmware should provide a high-level interface similar to:
+
+```cpp
+bool begin();
+
+bool readConductivity(float& conductivity);
+
+bool isConnected();
+
+bool calibrate();
+
+bool setConfiguration(...);
+```
+
+The exact interface may change during implementation.
+
+The application should request measurements without directly constructing Modbus frames.
+
+---
+
+## 5.5 EC Measurement
+
+The system shall internally maintain the conductivity value using a floating-point representation.
+
+The display may use:
+
+```text
+µS/cm
+```
+
+or:
+
+```text
+mS/cm
+```
+
+depending on the configured display range.
+
+The stored data should use a consistent base unit.
+
+Recommended storage unit:
+
+```text
+µS/cm
+```
+
+---
+
+## 5.6 Temperature Compensation
+
+The SEN0707 provides internal temperature compensation.
+
+The compensation shall remain enabled according to the sensor's operating configuration.
+
+Temperature shall not be exposed as a primary user-facing measurement in V0.1.
+
+The firmware may use sensor temperature information internally if required by the sensor protocol.
+
+---
+
+# 6. Ultrasonic Measurement
+
+## 6.1 Prototype Sensor
+
+The V0.1 prototype shall use:
+
+**HC-SR04**
+
+The sensor shall be treated as a feasibility and prototype device.
+
+It shall not be considered the final ultrasonic measurement technology.
+
+---
+
+## 6.2 Interface
+
+The HC-SR04 requires:
+
+```text
+VCC
+GND
+TRIG
+ECHO
+```
+
+The trigger signal shall be generated by an ESP32-S3 GPIO.
+
+The echo signal shall be captured using an ESP32-S3 GPIO with appropriate timing hardware.
+
+---
+
+## 6.3 Voltage Protection
+
+The HC-SR04 may provide a 5 V ECHO signal.
+
+The ESP32-S3 GPIO shall not be directly connected to a potentially 5 V ECHO output.
+
+The prototype shall therefore use:
+
+```text
+HC-SR04 ECHO
+      │
+      ▼
+Voltage Divider / Level Shifter
+      │
+      ▼
+ESP32-S3 GPIO
+```
+
+The selected circuit shall limit the ESP32-S3 input voltage to a safe 3.3 V logic level.
+
+---
+
+## 6.4 TOF Measurement
+
+The firmware shall measure the elapsed time between:
+
+```text
+TRIGGER
+   ↓
+Ultrasonic transmission
+   ↓
+Echo received
+   ↓
+STOP TIMER
+```
+
+The measurement shall use a high-resolution timing method.
+
+The implementation may use:
+
+- ESP-IDF high-resolution timer
+- GPIO interrupt
+- RMT
+- Hardware capture functionality
+
+The final implementation shall be selected during software development based on timing accuracy and implementation complexity.
+
+---
+
+## 6.5 Timeout
+
+The ultrasonic driver shall implement a configurable timeout.
+
+If no valid echo is received within the timeout:
+
+```text
+TOF = INVALID
+Distance = INVALID
+Status = TIMEOUT
+```
+
+The timeout shall not block the main application indefinitely.
+
+---
+
+## 6.6 Distance Calculation
+
+For air-based HC-SR04 testing, distance may be calculated using:
+
+```text
+Distance = TOF × Speed of Sound / 2
+```
+
+The division by two accounts for the outgoing and returning acoustic path.
+
+The speed of sound shall be configurable in firmware.
+
+The final calculation method for the customer's actual measurement environment must be validated experimentally.
+
+The V0.1 prototype shall not claim laboratory-grade ultrasonic distance accuracy.
+
+---
+
+# 7. Display
+
+## 7.1 Display Hardware
+
+The prototype shall use:
+
+**4-inch 480 × 320 SPI TFT**
+
+Target controller:
+
+**ST7796**
+
+The display shall be connected through SPI.
+
+---
+
+## 7.2 Display Requirements
+
+The display shall show:
+
+- Conductivity
+- Ultrasonic TOF
+- Distance
+- Measurement status
+- System status
+- Battery status
+
+Optional information:
+
+- Date/time
+- SD card status
+- Wi-Fi status
+
+---
+
+## 7.3 Display Refresh
+
+The UI shall remain responsive during sensor communication and data logging.
+
+Long-running operations shall not block the display task.
+
+The display architecture should use a dedicated UI task or event-driven update mechanism.
+
+---
+
+# 8. User Input
+
+The system shall provide:
+
+### Rotary Encoder
+
+Functions:
+
+- Menu navigation
+- Value adjustment
+- Selection
+
+### Encoder Push Button
+
+Functions:
+
+- Enter
+- Select
+- Confirm
+
+### START Button
+
+Function:
+
+- Start measurement
+
+### BACK Button
+
+Functions:
+
+- Return
+- Cancel
+- Exit
+
+Inputs shall use software debouncing.
+
+---
+
+# 9. Real-Time Clock
+
+## 9.1 RTC Hardware
+
+The prototype shall use:
+
+**DS3231**
+
+The RTC shall communicate using I2C.
+
+I2C is permitted for the internal RTC because it is located inside the enclosure and is not being used as an external sensor communication interface.
+
+---
+
+## 9.2 RTC Requirements
+
+The system shall:
+
+- Read date/time
+- Set date/time
+- Maintain time during power loss
+- Provide timestamps for measurements
+- Detect RTC communication failure
+
+---
+
+# 10. MicroSD Storage
+
+## 10.1 Interface
+
+The MicroSD card shall communicate through SPI.
+
+The SD interface shall not share the same SPI bus with the display unless proper chip-select and bus management are implemented.
+
+A dedicated SPI bus is preferred where practical.
+
+---
+
+## 10.2 Storage Format
+
+The initial storage format shall be CSV.
+
+Recommended structure:
+
+```text
+/ECTOF/
+├── config/
+├── data/
+│   └── YYYY/
+│       └── MM/
+│           └── DD.csv
+└── logs/
+```
+
+---
+
+## 10.3 Measurement Record
+
+Minimum record:
+
+```text
+id
+timestamp
+conductivity
+tof_us
+distance_mm
+status
+```
+
+Example:
+
+```text
+1,2026-10-08T15:32:10,4820,12.482,18.73,VALID
+```
+
+---
+
+## 10.4 Storage Reliability
+
+The firmware shall:
+
+- Detect SD initialization failure
+- Detect write failure
+- Avoid corrupting files where practical
+- Flush data after completed measurement records
+- Report SD errors to the user
+
+The system shall not crash when an SD card is removed or unavailable.
+
+---
+
+# 11. Wi-Fi
+
+The ESP32-S3 shall provide local Wi-Fi.
+
+The preferred V0.1 mode is:
+
+**Wi-Fi Access Point**
+
+Example:
+
+```text
+SSID: EC-TOF-Analyzer
+IP:   192.168.4.1
+```
+
+Internet access shall not be required.
+
+---
+
+# 12. Web Server
+
+The firmware shall provide an HTTP server.
+
+The server shall expose a simple REST-style API.
+
+Initial endpoints:
+
+```text
+GET  /api/device
+GET  /api/measurement/current
+POST /api/measurement/start
+GET  /api/measurements
+GET  /api/system/status
+
+GET  /api/export/{date}.csv
+
+GET  /api/calibration/ec
+POST /api/calibration/ec
+```
+
+The API design may change during implementation.
+
+The web interface shall consume the same application-level data used by the local TFT interface.
+
+The web server shall not communicate directly with sensor drivers.
+
+---
+
+# 13. Measurement Processing
+
+The measurement process shall follow a controlled state machine.
+
+Initial state flow:
+
+```text
+IDLE
+  ↓
+START
+  ↓
+ULTRASONIC TRIGGER
+  ↓
+WAIT FOR ECHO
+  ↓
+CALCULATE TOF
+  ↓
+CALCULATE DISTANCE
+  ↓
+READ CONDUCTIVITY
+  ↓
+VALIDATE RESULTS
+  ↓
+DISPLAY RESULTS
+  ↓
+LOG DATA
+  ↓
+READY
+```
+
+Error paths shall return to a safe state.
+
+Example:
+
+```text
+WAIT FOR ECHO
+      │
+      ├── Valid → Continue
+      │
+      └── Timeout → ERROR → READY
+```
+
+---
+
+# 14. Measurement Timing
+
+The system shall prevent a failed sensor from blocking the measurement process indefinitely.
+
+Each operation shall have a timeout.
+
+Minimum timeout-controlled operations:
+
+- RS485 communication
+- Modbus response
+- Ultrasonic echo
+- SD write
+- RTC communication
+
+Timeout values shall be configurable during development.
+
+---
+
+# 15. FreeRTOS Requirements
+
+The application should use FreeRTOS tasks where appropriate.
+
+Recommended initial task architecture:
+
+```text
+System Task
+     │
+     ├── Sensor Task
+     ├── UI Task
+     ├── Storage Task
+     ├── Web Task
+     └── Input Task
+```
+
+Tasks should communicate using:
+
+- Queues
+- Event groups
+- Notifications
+- Mutexes
+- Shared state protected by synchronization
+
+The implementation should avoid unnecessary task creation.
+
+---
+
+# 16. Power Architecture
+
+The prototype shall use a single-cell rechargeable battery.
+
+Target battery:
+
+```text
+3.7 V
+5000 mAh
+```
+
+Initial power architecture:
+
+```text
+                 ┌───────────────┐
+                 │  3.7 V Battery│
+                 └───────┬───────┘
+                         │
+                    Power Switch
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+             ▼                       ▼
+       12 V Boost              5 V Regulator
+             │                       │
+             ▼                       ├── TFT
+          SEN0707                    └── HC-SR04
+                                     
+                         3.3 V Logic
+                             │
+                             ▼
+                         ESP32-S3
+```
+
+The exact regulator topology will be finalized during hardware design.
+
+---
+
+# 17. Power Requirements
+
+The power system shall support simultaneous operation of:
+
+- ESP32-S3
+- TFT display
+- RS485 transceiver
+- SEN0707
+- HC-SR04
+- MicroSD
+- DS3231
+- User input devices
+
+Power converters shall be sized with appropriate margin above the expected continuous load.
+
+Actual system current consumption shall be measured during prototype testing.
+
+The battery runtime shall not be considered finalized until measurements are available.
+
+---
+
+# 18. Battery Charging
+
+The prototype shall use USB-C for charging.
+
+The charging system shall provide:
+
+- Single-cell lithium battery charging
+- Overcharge protection
+- Over-discharge protection
+- Short-circuit protection where supported
+- Charge status indication where available
+
+The charging circuit shall be electrically compatible with the selected battery.
+
+The charging circuit must not rely on the ESP32-S3 firmware for primary battery protection.
+
+---
+
+# 19. Battery Monitoring
+
+The system should provide battery state information.
+
+The V0.1 implementation may use:
+
+- Battery voltage measurement
+- External fuel gauge
+- Power management IC
+
+The exact battery monitoring hardware will be selected during hardware design.
+
+Battery percentage displayed on the UI shall be considered an estimate unless a suitable fuel gauge is implemented.
+
+---
+
+# 20. External Sensor Connectors
+
+The conductivity sensor shall use a removable connector.
+
+Target:
+
+**M12 connector**
+
+The ultrasonic sensor shall use a removable connector suitable for the selected module.
+
+Internal connections should use locking connectors such as JST where practical.
+
+Sensor wiring shall be physically separated from noisy power wiring where practical.
+
+---
+
+# 21. Electrical Noise Requirements
+
+Because the instrument contains:
+
+- Boost converters
+- Digital switching
+- RS485
+- SD card
+- TFT
+- Ultrasonic electronics
+
+The hardware shall consider electrical noise from the beginning.
+
+Requirements:
+
+- Keep high-current power paths short.
+- Separate sensor power from noisy switching paths where practical.
+- Use appropriate grounding.
+- Add local bypass capacitors.
+- Avoid long unshielded signal wiring where practical.
+- Use twisted pair for RS485.
+- Provide appropriate RS485 termination where required.
+- Keep ultrasonic signals away from high-current switching paths.
+
+The final grounding and shielding strategy will be defined in the hardware design document.
+
+---
+
+# 22. Configuration
+
+The system shall maintain configurable parameters.
+
+Potential configuration values include:
+
+```text
+Device name
+Wi-Fi SSID
+Wi-Fi password
+RS485 address
+RS485 baud rate
+Ultrasonic timeout
+Speed of sound
+Measurement interval
+Date/time
+Calibration parameters
+Display settings
+```
+
+Configuration storage should use non-volatile ESP32 storage.
+
+The firmware shall provide default values.
+
+Invalid configuration values shall be rejected.
+
+---
+
+# 23. Calibration Data
+
+Calibration parameters shall be stored separately from raw measurement data.
+
+Calibration data shall survive power cycles.
+
+The firmware should validate stored calibration data during startup.
+
+If calibration data is invalid, the system shall report the condition rather than silently using invalid values.
+
+---
+
+# 24. Error Handling
+
+The firmware shall use structured error states.
+
+Example statuses:
+
+```text
+READY
+MEASURING
+VALID
+EC_ERROR
+EC_TIMEOUT
+TOF_TIMEOUT
+TOF_INVALID
+SD_ERROR
+RTC_ERROR
+LOW_BATTERY
+CALIBRATION_REQUIRED
+SYSTEM_ERROR
+```
+
+Errors shall be visible to the user.
+
+The system should recover automatically from recoverable errors where practical.
+
+---
+
+# 25. Performance Requirements
+
+The following are initial engineering targets.
+
+| Parameter | Target |
+|---|---|
+| UI response | Less than 500 ms for normal interactions |
+| Sensor communication timeout | Configurable |
+| Ultrasonic timeout | Configurable |
+| Measurement record | Written after completed measurement |
+| System startup | Less than 10 seconds target |
+| Wi-Fi startup | Less than 15 seconds target |
+| Data loss | Minimize through immediate/controlled writes |
+| Continuous operation | At least several hours target, subject to battery testing |
+
+These values are prototype targets and may be revised after hardware measurements.
+
+---
+
+# 26. Maintainability Requirements
+
+The firmware shall be designed so individual components can be replaced without rewriting the entire application.
+
+For example:
+
+```text
+HC-SR04
+   ↓
+TOF Driver
+   ↓
+Measurement Service
+   ↓
+UI / Web / Storage
+```
+
+The application should not directly depend on HC-SR04-specific GPIO logic.
+
+This will allow the HC-SR04 to be replaced by a more suitable ultrasonic sensor in a future version.
+
+The same principle shall apply to:
+
+- EC sensor
+- Display
+- SD storage
+- RTC
+- Battery monitoring
+
+---
+
+# 27. Future Sensor Replacement
+
+The ultrasonic subsystem shall be designed with a hardware abstraction layer.
+
+The application should request:
+
+```cpp
+tof.read();
+```
+
+rather than directly controlling:
+
+```cpp
+gpio_set_level(TRIG_PIN, ...);
+```
+
+This allows future replacement with:
+
+- Separate ultrasonic transmitter and receiver
+- Industrial ultrasonic transducer
+- Liquid-compatible acoustic sensor
+- Custom ultrasonic front end
+- Other TOF technology
+
+without changing the main measurement workflow.
+
+---
+
+# 28. Prototype Validation Requirements
+
+Before the prototype is considered successful, the following shall be tested.
+
+### Conductivity
+
+- Sensor connection
+- Modbus communication
+- Stable readings
+- Calibration
+- Repeated measurements
+- Sensor disconnect
+- Communication timeout
+
+### Ultrasonic
+
+- Trigger generation
+- Echo detection
+- TOF timing
+- Distance calculation
+- Repeatability
+- Timeout
+- Invalid measurements
+- Different controlled distances
+
+### Storage
+
+- SD initialization
+- File creation
+- Data writing
+- Power cycle
+- Multiple measurements
+- Missing SD card
+
+### Power
+
+- Battery operation
+- Charging
+- Current consumption
+- Battery runtime
+- Low battery behavior
+- Simultaneous sensor operation
+
+### UI
+
+- Menu navigation
+- Measurement display
+- Error display
+- Button response
+- Rotary encoder operation
+
+### Web
+
+- AP startup
+- Dashboard
+- Current measurement
+- Measurement history
+- CSV download
+- Configuration
+
+---
+
+# 29. Technical Limitations
+
+The following limitations are accepted for V0.1:
+
+1. HC-SR04 is not considered a production-grade ultrasonic measurement solution.
+2. Ultrasonic measurement accuracy must be experimentally validated.
+3. Battery runtime is not finalized until actual power consumption is measured.
+4. Conductivity accuracy depends on the SEN0707 sensor and its calibration.
+5. The prototype is not certified for laboratory measurement standards.
+6. The enclosure is not considered production-grade.
+7. The prototype uses development boards and modules instead of a custom PCB.
+8. Local Wi-Fi is provided without cloud connectivity.
+
+---
+
+# 30. Technical Development Priority
+
+Development shall follow this order:
+
+```text
+1. ESP32-S3 bring-up
+        ↓
+2. Power system
+        ↓
+3. RS485 + SEN0707
+        ↓
+4. HC-SR04
+        ↓
+5. TFT display
+        ↓
+6. Physical controls
+        ↓
+7. RTC
+        ↓
+8. MicroSD
+        ↓
+9. Measurement state machine
+        ↓
+10. Calibration
+        ↓
+11. Wi-Fi
+        ↓
+12. Web interface
+        ↓
+13. Integrated testing
+        ↓
+14. Prototype validation
+```
+
+This order minimizes debugging complexity by validating each major subsystem independently.
+
+---
+
+# 31. Technical Requirement Summary
+
+The V0.1 system shall provide the following technical capabilities:
+
+```text
+                         EC-TOF ANALYZER
+                                │
+             ┌──────────────────┼──────────────────┐
+             │                  │                  │
+          SENSOR              USER              STORAGE
+             │                  │                  │
+        ┌────┴────┐       ┌─────┴─────┐        ┌───┴───┐
+        │         │       │           │        │       │
+       EC        TOF    TFT       Controls    SD     RTC
+        │         │       │           │        │       │
+      RS485     GPIO     SPI        GPIO      SPI     I2C
+        │         │       │           │        │       │
+        └────┬────┘       └─────┬─────┘        └───┬───┘
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                │
+                           ESP32-S3
+                                │
+                         ┌──────┴──────┐
+                         │             │
+                       Wi-Fi         Power
+                         │             │
+                       Web UI      Battery System
+```
+
+The technical architecture defined here shall be used as the baseline for:
+
+- `03-system-architecture.md`
+- `04-hardware-design.md`
+- `05-software-design.md`
+- `06-implementation-plan.md`
